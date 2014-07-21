@@ -1,7 +1,8 @@
-node-red-node-cloudant
-======================
+node-red-node-cf-cloudant
+=========================
 A [Node-RED](http://nodered.org) node to write (and read soon...) to a
-[Cloudant](http://cloudant.com) database.
+[Cloudant](http://cloudant.com) database that is integrated with
+[IBM Bluemix](http://bluemix.net).
 
 Install
 -------
