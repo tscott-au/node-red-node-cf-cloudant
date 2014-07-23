@@ -14,8 +14,27 @@
  * limitations under the License.
  **/
 
-module.exports = function(RED) {
-    "use strict";
+
+    var when = require("when");
+
+    var cfEnv = require("cf-env"); 
+    var cfCore = cfEnv.getCore();
+
+    var services = [];
+
+    for (var i in cfCore.services) {
+
+        console.log(cfCore.services[i]);
+
+        services = services.concat(cfCore.services[i].map(function(v) {
+            return {name:v.name,label:v.label};
+        }));
+    }
+
+    console.log(services);
+ 
+    var RED = require(process.env.NODE_RED_HOME+"/red/red");
+
     var url         = require('url');
     var querystring = require('querystring');
 
@@ -44,6 +63,7 @@ module.exports = function(RED) {
 
     RED.nodes.registerType("cloudant", CloudantNode);
 
+
     RED.httpAdmin.get('/cloudant/:id', function(req,res) {
         var credentials = RED.nodes.getCredentials(req.params.id);
 
@@ -62,6 +82,10 @@ module.exports = function(RED) {
     RED.httpAdmin.delete('/cloudant/:id', function(req,res) {
         RED.nodes.deleteCredentials(req.params.id);
         res.send(200);
+    });
+
+    RED.httpAdmin.get('/cloudantnode/vcap', function(req,res) {
+        res.send(JSON.stringify(services));
     });
 
     RED.httpAdmin.post('/cloudant/:id', function(req,res) {
@@ -92,6 +116,7 @@ module.exports = function(RED) {
         });
     });
 
+
     function CloudantOutNode(n) {
         RED.nodes.createNode(this,n);
 
@@ -99,25 +124,39 @@ module.exports = function(RED) {
         this.payonly        = n.payonly || false;
         this.database       = n.db;
         this.cloudant       = n.cloudant;
-        this.cloudantConfig = RED.nodes.getNode(this.cloudant);
+        //this.cloudantConfig = RED.nodes.getNode(this.cloudant);
 
-        if (this.cloudantConfig) {
+        if (n.service == "_ext_") {
+        var cloudantConfig = RED.nodes.getNode(this.cloudant);
+        if (cloudantConfig) {
+            this.url = cloudantConfig.url;
+        }   
+    } 
+        else if (n.service != "") {
+        var cloudantConfig = cfEnv.getService(n.service);
+        if (cloudantConfig) {
+            this.url = cloudantConfig.credentials.url||cloudantConfig.credentials.uri||Config.credentials.json_url;
+            //this.url = cloudantConfig.credentials.url;
+        }
+    }
+
+        if (this.url) { //this.url //this.cloudantConfig
             var node = this;
 
-            var nano = require('nano')(node.cloudantConfig.url);
+            var nano = require('nano')(this.url);
             var db   = nano.use(node.database);
 
             // check if the database exists and create it if it doesn't
-            nano.db.list(function(err, body) {
-                if (err) { node.error(err); }
-                else {
-                    if (body && body.indexOf(node.database) < 0) {
-                        nano.db.create(node.database, function(err, body) {
-                            if (err) { node.error(err); }
-                        });
-                    }
-                }
-            });
+             nano.db.list(function(err, body) {
+                 if (err) { node.error(err); }
+                  else {
+                     if (body && body.indexOf(node.database) < 0) {
+                         nano.db.create(node.database, function(err, body) {
+                             if (err) { node.error(err); }
+                         });
+                     }
+                 }
+             });
 
             node.on("input", function(msg) {
                 if (node.operation === "insert") {
@@ -130,7 +169,7 @@ module.exports = function(RED) {
                     });
                 }
                 else if (node.operation === "delete") {
-                    var doc = msg.payload;
+                    var doc = parseMessage(msg.payload, "");
 
                     if ("_rev" in doc && "_id" in doc) {
                         db.destroy(doc._id, doc._rev, function(err, body) {
@@ -166,4 +205,3 @@ module.exports = function(RED) {
     };
 
     RED.nodes.registerType("cloudant out", CloudantOutNode);
-}

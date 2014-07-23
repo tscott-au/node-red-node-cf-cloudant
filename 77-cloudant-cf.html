@@ -88,8 +88,17 @@
 </script>
 
 <script type="text/x-red" data-template-name="cloudant out">
+
     <div class="form-row">
-        <label for="node-input-cloudant"><i class="fa fa-tag"></i> Account</label>
+        <label for="node-input-service"><i class="fa fa-folder-close"></i> Service</label>
+        <select id="node-input-service">
+            <option value="" disabled></option>
+            <option value="_ext_"> External service</option>
+        </select>
+    </div>
+
+    <div class="form-row hide" id="node-input-external-details">
+        <label for="node-input-cloudant"><i class=" fa fa-bookmark"></i> Server</label>
         <input type="text" id="node-input-cloudant">
     </div>
 
@@ -127,6 +136,7 @@
             else $(".node-input-payonly").show();
         });
     </script>
+
 </script>
 
 <script type="text/x-red" data-help-name="cloudant out">
@@ -150,26 +160,72 @@
     </p>
 </script>
 
-<script type="text/javascript">
-    RED.nodes.registerType("cloudant out", {
-        category: "storage-output",
-        color: "rgb(114, 199, 231)",
-        defaults: {
-            cloudant: { type: "cloudant", required: true },
-            name: { value: "" },
-            db: { value: "", required: true },
-            payonly: { value: false },
-            operation: { value: "insert" }
-        },
-        inputs: 1,
-        outputs: 0,
-        icon: "cloudant.png",
-        align: "right",
-        label: function() {
-            return this.name || "cloudant";
-        },
-        labelStyle: function() {
-            return this.name ? "node_label_italic" : "";
+<script type="text/javascript"> //js functions
+    (function() {
+
+        function oneditprepare() {
+            var select = $('#node-input-service');
+            var node = this;
+            $.getJSON('cloudantnode/vcap/',function(data) {
+                var last = select.children().last();
+                var opts = [];
+                for (var i =0;i<data.length;i++) {
+                    opts.push('<option value="'+data[i].name+'"'+(node.service==data[i].name?" selected":"")+'>'+data[i].name+'</option>');
+                }
+                if (opts.length == 0) {
+                    node.service = "_ext_";
+                    select.find("option").filter(function() {return $(this).val() == node.service;}).attr('selected',true);
+                } else {
+                    last.before(opts.join(""));
+                }
+                select.change();
+            });
+            select.change(function() {
+                var service = select.val();
+                if (service == "_ext_") {
+                    $("#node-input-external-details").show();
+                } else {
+                    $("#node-input-external-details").hide();
+                }
+            });
         }
-    });
+
+        function label() {
+            var cloudantNode = RED.nodes.node(this.cloudant);
+            if (this.name) {
+                return this.name;
+            }
+            if (this.service == "_ext_") {
+                return (cloudantNode?cloudantNode.label()+" "+this.collection:"cloudant");
+            }
+            return this.service||"cloudant";
+        }
+
+        function validateServer(v) {
+            return this.service != "_ext_" || v!="_ADD_";
+        }
+
+        RED.nodes.registerType("cloudant out", {
+            category: "storage-output",
+            color: "rgb(114, 199, 231)",
+            defaults: {
+                service: { value: "", required: true },
+                cloudant: { type:"cloudant",validate:validateServer}, //validate server
+                name: { value: "" },
+                db: { value: "", required: true },
+                payonly: { value: false },
+                operation: { value: "insert" }
+            },
+            inputs: 1,
+            outputs: 0,
+            icon: "cloudant.png",
+            align: "right",
+            label: label, //called
+            labelStyle: function() {
+                return this.name?"node_label_italic":"";
+            },
+            oneditprepare: oneditprepare //called
+        });
+    })();
+
 </script>
