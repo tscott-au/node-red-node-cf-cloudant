@@ -18,7 +18,12 @@ operations.
 
 To **insert** a new document into the database you have the option to store
 the entire `msg` object or just the `msg.payload`. If the input value is not
-in JSON format, it will transformed before being stored.
+in JSON format, it will be transformed before being stored.
 
 For **update** and **delete**, you must pass the `_id` and the `_rev`as part
 of the input `msg` object.
+
+Known issues
+------------
+* weird stuffs happen when you delete a database that is being used (redeploy
+  the flow to recreate the databases)
