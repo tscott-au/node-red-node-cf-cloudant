@@ -1,19 +1,19 @@
 {
-    "name"         : "node-red-node-cloudant",
+    "name"         : "node-red-node-cf-cloudant",
     "version"      : "0.0.1",
-    "description"  : "A Node-RED node to write to a Cloudant database",
+    "description"  : "A Node-RED node to write to a Cloudant database on Bluemix",
     "dependencies" : {
         "nano" : "5.10.0"
     },
     "repository" : {
         "type" : "git",
-        "url"  : "https://hub.jazz.net/project/laoqui2/cloudant-node-red"
+        "url"  : "https://hub.jazz.net/git/laoqui2/node-red-node-cf-cloudant"
     },
     "license"  : "Apache",
-    "keywords" : [ "node-red", "cloudant" ],
+    "keywords" : [ "node-red", "cloudant", "bluemix" ],
     "node-red" : {
         "nodes" : {
-            "cloudant" : "77-cloudant.js"
+            "cloudant-cf" : "77-cloudant-cf.js"
         }
     },
     "author" : {
