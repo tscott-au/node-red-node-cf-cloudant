@@ -88,7 +88,6 @@
 </script>
 
 <script type="text/x-red" data-template-name="cloudant out">
-
     <div class="form-row">
         <label for="node-input-service"><i class="fa fa-folder-close"></i> Service</label>
         <select id="node-input-service">
@@ -136,7 +135,138 @@
             else $(".node-input-payonly").show();
         });
     </script>
+</script>
 
+<script type="text/x-red" data-template-name="cloudant in">
+    <div class="form-row">
+        <label for="node-input-service"><i class="fa fa-folder-close"></i> Service</label>
+        <select id="node-input-service">
+            <option value="" disabled></option>
+            <option value="_ext_"> External service</option>
+        </select>
+    </div>
+
+    <div class="form-row hide" id="node-input-external-details">
+        <label for="node-input-cloudant"><i class=" fa fa-bookmark"></i> Server</label>
+        <input type="text" id="node-input-cloudant">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-database"><i class="fa fa-briefcase"></i> Database</label>
+        <input type="text" id="node-input-database" placeholder="database">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-design-doc"><i class="fa fa-search"></i> Search Idx.</label>
+        <input type="text" id="node-input-design" style="width: 30%" placeholder="design document">
+        /
+        <input type="text" id="node-input-index" style="width: 30%" placeholder="index name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <script>
+        $("#node-input-operation").change(function() {
+            var id = $("#node-input-operation option:selected").val();
+            if (id == "delete") $(".node-input-payonly").hide();
+            else $(".node-input-payonly").show();
+        });
+    </script>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("cloudant out", {
+        category: "storage-output",
+        color: "rgb(114, 199, 231)",
+        defaults: {
+            service: { value: "", required: true },
+            cloudant: { type: "cloudant", validate: validateServer},
+            name: { value: "" },
+            database: { value: "", required: true },
+            payonly: { value: false },
+            operation: { value: "insert" }
+        },
+        inputs: 1,
+        outputs: 0,
+        icon: "cloudant.png",
+        align: "right",
+        label: label,
+        labelStyle: function() {
+            return this.name?"node_label_italic":"";
+        },
+        oneditprepare: oneditprepare
+    });
+
+    RED.nodes.registerType("cloudant in", {
+        category: "storage-input",
+        color: "rgb(114, 199, 231)",
+        defaults: {
+            service : { value: "", required: true },
+            cloudant: { type: "cloudant", validate: validateServer },
+            name    : { value: "" },
+            database: { value: "", required: true },
+            design  : { value: "", required: true },
+            index   : { value: "", required: true }
+        },
+        inputs : 1,
+        outputs: 1,
+        icon   : "cloudant.png",
+        label  : label,
+        labelStyle: function() {
+            return this.name?"node_label_italic":"";
+        },
+        oneditprepare: oneditprepare
+    });
+
+    function oneditprepare() {
+        var select = $('#node-input-service');
+        var node = this;
+
+        $.getJSON('cloudant/vcap/',function(data) {
+            var last = select.children().last();
+            var opts = [];
+
+            for (var i=0; i < data.length; i++) {
+                var selected = node.service == data[i].name;
+                opts.push(
+                    '<option value="' + data[i].name + '"' + (selected ? " selected":"") + '>' +
+                        data[i].name +
+                    '</option>'
+                );
+            }
+
+            if (opts.length == 0) {
+                node.service = "_ext_";
+                select.find("option").filter(function() {
+                    return $(this).val() == node.service;
+                }).attr('selected', true);
+            } else {
+                last.before(opts.join(""));
+            }
+
+            select.change();
+        });
+
+        select.change(function() {
+            var service = select.val();
+            if (service == "_ext_") {
+                $("#node-input-external-details").show();
+            } else {
+                $("#node-input-external-details").hide();
+            }
+        });
+    }
+
+    function label() {
+        return this.name || this.database || "cloudant";
+    }
+
+    function validateServer(v) {
+        return this.service != "_ext_" || v != "_ADD_";
+    }
 </script>
 
 <script type="text/x-red" data-help-name="cloudant out">
@@ -160,76 +290,13 @@
     </p>
 </script>
 
-<script type="text/javascript"> //js functions
-    (function() {
-
-        function oneditprepare() {
-            var select = $('#node-input-service');
-            var node = this;
-
-            $.getJSON('cloudant/vcap/',function(data) {
-                var last = select.children().last();
-                var opts = [];
-
-                for (var i=0; i < data.length; i++) {
-                    var selected = node.service == data[i].name;
-                    opts.push(
-                        '<option value="' + data[i].name + '"' + (selected ? " selected":"") + '>' +
-                            data[i].name +
-                        '</option>'
-                    );
-                }
-
-                if (opts.length == 0) {
-                    node.service = "_ext_";
-                    select.find("option").filter(function() {
-                        return $(this).val() == node.service;
-                    }).attr('selected', true);
-                } else {
-                    last.before(opts.join(""));
-                }
-
-                select.change();
-            });
-
-            select.change(function() {
-                var service = select.val();
-                if (service == "_ext_") {
-                    $("#node-input-external-details").show();
-                } else {
-                    $("#node-input-external-details").hide();
-                }
-            });
-        }
-
-        function label() {
-            return this.name || this.database || "cloudant";
-        }
-
-        function validateServer(v) {
-            return this.service != "_ext_" || v != "_ADD_";
-        }
-
-        RED.nodes.registerType("cloudant out", {
-            category: "storage-output",
-            color: "rgb(114, 199, 231)",
-            defaults: {
-                service: { value: "", required: true },
-                cloudant: { type: "cloudant", validate: validateServer},
-                name: { value: "" },
-                database: { value: "", required: true },
-                payonly: { value: false },
-                operation: { value: "insert" }
-            },
-            inputs: 1,
-            outputs: 0,
-            icon: "cloudant.png",
-            align: "right",
-            label: label,
-            labelStyle: function() {
-                return this.name?"node_label_italic":"";
-            },
-            oneditprepare: oneditprepare
-        });
-    })();
+<script type="text/x-red" data-help-name="cloudant in">
+   <p>
+        A node for searching a Cloudant database using a Search Index.
+    </p>
+    <p>
+        Query is performed on existing <b>Search Indexes</b> stored on the desired
+        database. The query argument should be passed on the <code>msg.payload</code>
+        following the <code>indexName:value</code> pattern.
+    </p>
 </script>
