@@ -137,6 +137,46 @@
     </script>
 </script>
 
+<script type="text/x-red" data-template-name="cloudant in">
+    <div class="form-row">
+        <label for="node-input-service"><i class="fa fa-folder-close"></i> Service</label>
+        <select id="node-input-service">
+            <option value="" disabled></option>
+            <option value="_ext_"> External service</option>
+        </select>
+    </div>
+
+    <div class="form-row hide" id="node-input-external-details">
+        <label for="node-input-cloudant"><i class=" fa fa-bookmark"></i> Server</label>
+        <input type="text" id="node-input-cloudant">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-database"><i class="fa fa-briefcase"></i> Database</label>
+        <input type="text" id="node-input-database" placeholder="database">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-design-doc"><i class="fa fa-search"></i> Search Idx.</label>
+        <input type="text" id="node-input-design" style="width: 30%" placeholder="design document">
+        /
+        <input type="text" id="node-input-index" style="width: 30%" placeholder="index name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <script>
+        $("#node-input-operation").change(function() {
+            var id = $("#node-input-operation option:selected").val();
+            if (id == "delete") $(".node-input-payonly").hide();
+            else $(".node-input-payonly").show();
+        });
+    </script>
+</script>
+
 <script type="text/javascript">
     RED.nodes.registerType("cloudant out", {
         category: "storage-output",
@@ -154,6 +194,27 @@
         icon: "cloudant.png",
         align: "right",
         label: label,
+        labelStyle: function() {
+            return this.name?"node_label_italic":"";
+        },
+        oneditprepare: oneditprepare
+    });
+
+    RED.nodes.registerType("cloudant in", {
+        category: "storage-input",
+        color: "rgb(114, 199, 231)",
+        defaults: {
+            service : { value: "", required: true },
+            cloudant: { type: "cloudant", validate: validateServer },
+            name    : { value: "" },
+            database: { value: "", required: true },
+            design  : { value: "", required: true },
+            index   : { value: "", required: true }
+        },
+        inputs : 1,
+        outputs: 1,
+        icon   : "cloudant.png",
+        label  : label,
         labelStyle: function() {
             return this.name?"node_label_italic":"";
         },
@@ -226,5 +287,16 @@
         It is also possible to <b>delete</b> documents from the database by
         providing values for <b>msg.payload._id</b> and <b>msg.payload._rev</b>
         and selecting the <b>remove</b> option for the node.
+    </p>
+</script>
+
+<script type="text/x-red" data-help-name="cloudant in">
+   <p>
+        A node for searching a Cloudant database using a Search Index.
+    </p>
+    <p>
+        Query is performed on existing <b>Search Indexes</b> stored on the desired
+        database. The query argument should be passed on the <code>msg.payload</code>
+        following the <code>indexName:value</code> pattern.
     </p>
 </script>
