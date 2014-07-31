@@ -125,19 +125,7 @@ module.exports = function(RED) {
         this.payonly        = n.payonly || false;
         this.database       = n.database;
         this.cloudant       = n.cloudant;
-
-        if (n.service == "_ext_") {
-            var cloudantConfig = RED.nodes.getNode(this.cloudant);
-            if (cloudantConfig) {
-                this.url = cloudantConfig.url;
-            }
-        }
-        else if (n.service != "") {
-            var cloudantConfig = cfEnv.getService(n.service);
-            if (cloudantConfig) {
-                this.url = cloudantConfig.credentials.url;
-            }
-        }
+        this.url            = _getUrl(this, n);
 
         if (this.url) {
             var node = this;
@@ -220,4 +208,49 @@ module.exports = function(RED) {
         }
     };
     RED.nodes.registerType("cloudant out", CloudantOutNode);
+
+    function CloudantInNode(n) {
+        RED.nodes.createNode(this,n);
+
+        this.design   = n.design;
+        this.index    = n.index;
+        this.database = n.database;
+        this.cloudant = n.cloudant;
+        this.url      = _getUrl(this, n);
+
+        if (this.url) {
+            var node = this;
+
+            var nano = require('nano')(node.url);
+            var db   = nano.use(node.database);
+
+            node.on("input", function(msg) {
+                var query = { q: msg.payload };
+
+                db.search(node.design, node.index, query, function(err, doc) {
+                    if (!err) {
+                        node.send(doc);
+                    } else {
+                        node.error(err);
+                    }
+                });
+            });
+        }
+    }
+    RED.nodes.registerType("cloudant in", CloudantInNode);
+
+    function _getUrl(node, n) {
+        if (n.service == "_ext_") {
+            var cloudantConfig = RED.nodes.getNode(node.cloudant);
+            if (cloudantConfig) {
+                return cloudantConfig.url;
+            }
+        }
+        else if (n.service != "") {
+            var cloudantConfig = cfEnv.getService(n.service);
+            if (cloudantConfig) {
+                return cloudantConfig.credentials.url;
+            }
+        }
+    }
 };
