@@ -229,7 +229,6 @@ module.exports = function(RED) {
 
                 db.search(node.design, node.index, query, function(err, doc) {
                     if (!err) {
-                        //node.send(doc);
                         node.send({ payload: doc });
                     } else {
                         node.error(err);
