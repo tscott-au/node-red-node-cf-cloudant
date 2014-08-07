@@ -157,7 +157,15 @@
     </div>
 
     <div class="form-row">
-        <label for="node-input-design-doc"><i class="fa fa-search"></i> Search Idx.</label>
+        <label for="node-input-search"><i class="fa fa-search"></i> Search by</label>
+        <select id="node-input-search">
+            <option value="_id_">_id</option>
+            <option value="_idx_">search index</option>
+        </select>
+    </div>
+
+    <div id="node-search-index-form" class="form-row">
+        <label>&nbsp;</label>
         <input type="text" id="node-input-design" style="width: 30%" placeholder="design document">
         /
         <input type="text" id="node-input-index" style="width: 30%" placeholder="index name">
@@ -169,10 +177,10 @@
     </div>
 
     <script>
-        $("#node-input-operation").change(function() {
-            var id = $("#node-input-operation option:selected").val();
-            if (id == "delete") $(".node-input-payonly").hide();
-            else $(".node-input-payonly").show();
+        $("#node-input-search").change(function() {
+            var searchType = $("#node-input-search option:selected").val();
+            if (searchType == "_id_") $("#node-search-index-form").hide();
+            else $("#node-search-index-form").show();
         });
     </script>
 </script>
@@ -208,6 +216,7 @@
             cloudant: { type: "cloudant", validate: validateServer },
             name    : { value: "" },
             database: { value: "", required: true },
+            search  : { value: "_id_", required: true },
             design  : { value: "", required: true },
             index   : { value: "", required: true }
         },
@@ -292,11 +301,22 @@
 
 <script type="text/x-red" data-help-name="cloudant in">
    <p>
-        A node for searching a Cloudant database using a Search Index.
+        A node for searching documents in a Cloudant database.
     </p>
     <p>
-        Query is performed on existing <b>Search Indexes</b> stored on the desired
-        database. The query argument should be passed on the <code>msg.payload</code>
-        following the <code>indexName:value</code> pattern.
+        Searching for a document can be done in two modes: directly by using the
+        document <b>_id</b> or by using an existing <a
+        href="https://cloudant.com/for-developers/search/" target="_blank">Search
+        Index</a>.
+    </p>
+    <p>
+        When querying using the <b>_id</b> option, the <code>_id</code> should be
+        passed in the <code>msg.payload</code> as a string.
+    </p>
+    <p>
+        To use an existing <b>Search Index</b> stored on the desired database, the
+        query argument should be passed on the <code>msg.payload</code> following
+        the <code>indexName:value</code> pattern. The index must be created beforehand
+        on the database.
     </p>
 </script>
