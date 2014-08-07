@@ -212,11 +212,12 @@ module.exports = function(RED) {
     function CloudantInNode(n) {
         RED.nodes.createNode(this,n);
 
-        this.design   = n.design;
-        this.index    = n.index;
-        this.database = n.database;
         this.cloudant = n.cloudant;
         this.url      = _getUrl(this, n);
+        this.database = n.database;
+        this.search   = n.search;
+        this.design   = n.design;
+        this.index    = n.index;
 
         if (this.url) {
             var node = this;
@@ -225,16 +226,23 @@ module.exports = function(RED) {
             var db   = nano.use(node.database);
 
             node.on("input", function(msg) {
-                var query = { q: msg.payload };
-
-                db.search(node.design, node.index, query, function(err, doc) {
-                    if (!err) {
-                        node.send({ payload: doc });
-                    } else {
-                        node.error(err);
-                    }
-                });
+                if (node.search === "_id_") {
+                    var id = msg.payload;
+                    db.get(id, sendDocumentOnPayload);
+                }
+                else if (node.search === "_idx_") {
+                    var query = { q: msg.payload };
+                    db.search(node.design, node.index, query, sendDocumentOnPayload);
+                }
             });
+        }
+
+        function sendDocumentOnPayload(err, body) {
+            if (!err) {
+                node.send({ payload: body });
+            } else {
+                node.error(err);
+            }
         }
     }
     RED.nodes.registerType("cloudant in", CloudantInNode);
