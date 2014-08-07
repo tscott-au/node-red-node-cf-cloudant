@@ -301,11 +301,22 @@
 
 <script type="text/x-red" data-help-name="cloudant in">
    <p>
-        A node for searching a Cloudant database using a Search Index.
+        A node for searching documents in a Cloudant database.
     </p>
     <p>
-        Query is performed on existing <b>Search Indexes</b> stored on the desired
-        database. The query argument should be passed on the <code>msg.payload</code>
-        following the <code>indexName:value</code> pattern.
+        Searching for a document can be done in two modes: directly by using the
+        document <b>_id</b> or by using an existing <a
+        href="https://cloudant.com/for-developers/search/" target="_blank">Search
+        Index</a>.
+    </p>
+    <p>
+        When querying using the <b>_id</b> option, the <code>_id</code> should be
+        passed in the <code>msg.payload</code> as a string.
+    </p>
+    <p>
+        To use an existing <b>Search Index</b> stored on the desired database, the
+        query argument should be passed on the <code>msg.payload</code> following
+        the <code>indexName:value</code> pattern. The index must be created beforehand
+        on the database.
     </p>
 </script>
