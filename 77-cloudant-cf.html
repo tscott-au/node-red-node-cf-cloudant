@@ -175,14 +175,6 @@
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
-
-    <script>
-        $("#node-input-search").change(function() {
-            var searchType = $("#node-input-search option:selected").val();
-            if (searchType == "_id_") $("#node-search-index-form").hide();
-            else $("#node-search-index-form").show();
-        });
-    </script>
 </script>
 
 <script type="text/javascript">
@@ -217,8 +209,8 @@
             name    : { value: "" },
             database: { value: "", required: true },
             search  : { value: "_id_", required: true },
-            design  : { value: "", required: true },
-            index   : { value: "", required: true }
+            design  : { value: "" },
+            index   : { value: "" }
         },
         inputs : 1,
         outputs: 1,
@@ -231,11 +223,14 @@
     });
 
     function oneditprepare() {
-        var select = $('#node-input-service');
         var node = this;
 
+        var serviceSelect  = $('#node-input-service');
+        var searchBySelect = $('#node-input-search');
+        var searchForm     = $('#node-search-index-form');
+
         $.getJSON('cloudant/vcap/',function(data) {
-            var last = select.children().last();
+            var last = serviceSelect.children().last();
             var opts = [];
 
             for (var i=0; i < data.length; i++) {
@@ -249,22 +244,36 @@
 
             if (opts.length == 0) {
                 node.service = "_ext_";
-                select.find("option").filter(function() {
+                serviceSelect.find("option").filter(function() {
                     return $(this).val() == node.service;
                 }).attr('selected', true);
             } else {
                 last.before(opts.join(""));
             }
 
-            select.change();
+            serviceSelect.change();
         });
 
-        select.change(function() {
-            var service = select.val();
+        serviceSelect.change(function() {
+            var service = serviceSelect.val();
             if (service == "_ext_") {
                 $("#node-input-external-details").show();
             } else {
                 $("#node-input-external-details").hide();
+            }
+        });
+
+        searchBySelect.change(function() {
+            var searchBy = searchBySelect.val();
+
+            if (searchBy === "_idx_") {
+                node._def.defaults.design.required = true;
+                node._def.defaults.index.required  = true;
+                searchForm.show();
+            } else {
+                node._def.defaults.design.required = false;
+                node._def.defaults.index.required  = false;
+                searchForm.hide();
             }
         });
     }
