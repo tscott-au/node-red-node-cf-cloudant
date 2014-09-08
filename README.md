@@ -30,3 +30,8 @@ from the database. For both cases, the query should be passed in the
 
 When getting documents by id, the `payload` will be the desired `_id` value.
 For `search indexes`, the query should follow the format `indexName:value`.
+
+Authors
+-------
+* Luiz Gustavo Ferraz Aoqui - [laoqui@ca.ibm.com](mailto:laoqui@ca.ibm.com)
+* Túlio Pascoal

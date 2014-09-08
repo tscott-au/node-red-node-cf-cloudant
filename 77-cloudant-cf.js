@@ -212,12 +212,13 @@ module.exports = function(RED) {
     function CloudantInNode(n) {
         RED.nodes.createNode(this,n);
 
-        this.cloudant = n.cloudant;
-        this.url      = _getUrl(this, n);
-        this.database = n.database;
-        this.search   = n.search;
-        this.design   = n.design;
-        this.index    = n.index;
+        this.cloudant  = n.cloudant;
+        this.url       = _getUrl(this, n);
+        this.database  = n.database;
+        this.search    = n.search;
+        this.design    = n.design;
+        this.index     = n.index;
+        this.payloadIn = "";
 
         if (this.url) {
             var node = this;
@@ -226,6 +227,8 @@ module.exports = function(RED) {
             var db   = nano.use(node.database);
 
             node.on("input", function(msg) {
+                node.payloadIn = msg.payload;
+
                 if (node.search === "_id_") {
                     var id = msg.payload;
                     db.get(id, sendDocumentOnPayload);
@@ -241,7 +244,12 @@ module.exports = function(RED) {
             if (!err) {
                 node.send({ payload: body });
             } else {
-                node.error(err);
+                if (err.description === "missing") {
+                    node.warn("Document '" + node.payloadIn+ "' not found in database '" +
+                                node.database + "'.");
+                } else {
+                    node.error(err.reason);
+                }
             }
         }
     }
