@@ -1,7 +1,7 @@
 {
     "name"         : "node-red-node-cf-cloudant",
-    "version"      : "0.2.2",
-    "description"  : "A Node-RED node to write to a Cloudant database on Bluemix",
+    "version"      : "0.2.3",
+    "description"  : "A Node-RED node to access a Cloudant database on Bluemix",
     "dependencies" : {
         "nano" : "5.10.0"
     },
