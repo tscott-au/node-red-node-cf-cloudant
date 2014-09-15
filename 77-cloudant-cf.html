@@ -292,19 +292,24 @@
        A simple Cloudant output node. Stores <b>msg</b> in a chosen database.
     </p>
    <p>
-       Cloudant generates a random id for the <b>msg._id</b> property if one
+       Cloudant generates a random id for the <code>_id</code> property if one
        is not specified and a new document will be <b>inserted</b> each time.
-       If you want to <b>update</b> an existing document you must specify a
-       value for <b>msg._id</b> in your object.
-    </p>
-    <p>
-        You can <b>insert</b> only the <b>payload</b> by checking the checkbox
-        in the configuration window.
+       You can <b>insert</b> only the <code>msg.payload</code> by checking the
+       checkbox in the configuration window.
+   </p>
+   <p>
+       If you want to <b>update</b> an existing document you must specify the
+       latest values for <code>_id</code> and <code>_rev</code> in your object.
+       If they don't match the current values stored in the database you will
+       receive a <b>conflict error</b> message, so make sure you are using the
+       most updated information for the document.
     </p>
     <p>
         It is also possible to <b>delete</b> documents from the database by
-        providing values for <b>msg.payload._id</b> and <b>msg.payload._rev</b>
-        and selecting the <b>remove</b> option for the node.
+        providing values for <code>_id</b> and <code>_rev</code> and selecting
+        the <b>remove</b> option for the node. You can pass these values in the
+        <code>msg</code> object itself or as an object in the
+        <code>msg.payload</code>.
     </p>
 </script>
 
@@ -314,18 +319,18 @@
     </p>
     <p>
         Searching for a document can be done in two modes: directly by using the
-        document <b>_id</b> or by using an existing <a
+        document's <b>_id</b> or by using an existing <a
         href="https://cloudant.com/for-developers/search/" target="_blank">Search
         Index</a>.
     </p>
     <p>
-        When querying using the <b>_id</b> option, the <code>_id</code> should be
-        passed in the <code>msg.payload</code> as a string.
+        When querying using the <b>_id</b> option, the value for <code>_id</code>
+        should be passed in the <code>msg.payload</code> as a string.
     </p>
     <p>
         To use an existing <b>Search Index</b> stored on the desired database, the
         query argument should be passed on the <code>msg.payload</code> following
-        the <code>indexName:value</code> pattern. The index must be created beforehand
-        on the database.
+        the <code>indexName:value</code> pattern. <i>The index must be created
+        beforehand on the database.</i>
     </p>
 </script>
