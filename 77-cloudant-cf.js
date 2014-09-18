@@ -231,18 +231,23 @@ module.exports = function(RED) {
 
                 if (node.search === "_id_") {
                     var id = msg.payload;
-                    db.get(id, sendDocumentOnPayload);
+                    db.get(id, function(err, body) {
+                        sendDocumentOnPayload(err, body, msg);
+                    });
                 }
                 else if (node.search === "_idx_") {
                     var query = { q: msg.payload };
-                    db.search(node.design, node.index, query, sendDocumentOnPayload);
+                    db.search(node.design, node.index, query, function(err, body) {
+                        sendDocumentOnPayload(err, body, msg);
+                    });
                 }
             });
         }
 
-        function sendDocumentOnPayload(err, body) {
+        function sendDocumentOnPayload(err, body, msg) {
             if (!err) {
-                node.send({ payload: body });
+                msg.payload = body;
+                node.send(msg);
             } else {
                 if (err.description === "missing") {
                     node.warn("Document '" + node.payloadIn+ "' not found in database '" +
