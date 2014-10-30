@@ -3,6 +3,7 @@
     "version"      : "0.2.5",
     "description"  : "A Node-RED node to access a Cloudant database on Bluemix",
     "dependencies" : {
+        "cfenv": "1.0.0",
         "nano" : "5.10.0"
     },
     "repository" : {

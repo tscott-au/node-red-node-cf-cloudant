@@ -18,18 +18,18 @@ module.exports = function(RED) {
 
     var url         = require('url');
     var querystring = require('querystring');
-    var cfEnv       = require("cf-env");
+    var cfEnv       = require("cfenv");
 
     var MAX_ATTEMPTS = 3;
 
-    var cfCore   = cfEnv.getCore();
+    var appEnv   = cfEnv.getAppEnv();
     var services = [];
 
     // load the services bindded to this application
-    for (var i in cfCore.services) {
+    for (var i in appEnv.services) {
         // filter the services to include only the Cloudant ones
         if (i.match(/^(cloudant)/i)) {
-            services = services.concat(cfCore.services[i].map(function(v) {
+            services = services.concat(appEnv.services[i].map(function(v) {
                 return { name: v.name, label: v.label };
             }));
         }
