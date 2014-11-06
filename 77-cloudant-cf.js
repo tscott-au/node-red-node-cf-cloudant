@@ -268,7 +268,7 @@ module.exports = function(RED) {
             }
         }
         else if (n.service != "") {
-            var cloudantConfig = cfEnv.getService(n.service);
+            var cloudantConfig = appEnv.getService(n.service);
             if (cloudantConfig) {
                 return cloudantConfig.credentials.url;
             }
