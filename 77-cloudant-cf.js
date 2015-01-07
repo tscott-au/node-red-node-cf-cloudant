@@ -247,8 +247,9 @@ module.exports = function(RED) {
         function sendDocumentOnPayload(err, body, msg) {
             if (!err) {
                 msg.payload = body;
-                node.send(msg);
             } else {
+                msg.payload = null;
+
                 if (err.description === "missing") {
                     node.warn("Document '" + node.payloadIn+ "' not found in database '" +
                                 node.database + "'.");
@@ -256,6 +257,8 @@ module.exports = function(RED) {
                     node.error(err.reason);
                 }
             }
+            
+            node.send(msg);
         }
     }
     RED.nodes.registerType("cloudant in", CloudantInNode);
