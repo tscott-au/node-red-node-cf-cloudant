@@ -236,7 +236,7 @@ module.exports = function(RED) {
                     });
                 }
                 else if (node.search === "_idx_") {
-                    var query = { q: msg.payload };
+                    var query = { q: msg.payload, limit: 200 };
                     db.search(node.design, node.index, query, function(err, body) {
                         sendDocumentOnPayload(err, body, msg);
                     });
