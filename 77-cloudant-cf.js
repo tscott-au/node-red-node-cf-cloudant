@@ -65,31 +65,23 @@ module.exports = function(RED) {
     });
 
     RED.httpAdmin.post('/cloudant/:id', function(req,res) {
-        var body = "";
+        var newCreds = req.body;
+        var credentials = RED.nodes.getCredentials(req.params.id) || {};
 
-        req.on('data', function(chunk) {
-            body += chunk;
-        });
+        if (newCreds.user == null || newCreds.user == "") {
+            delete credentials.user;
+        } else {
+            credentials.user = newCreds.user;
+        }
 
-        req.on('end', function() {
-            var newCreds = querystring.parse(body);
-            var credentials = RED.nodes.getCredentials(req.params.id) || {};
+        if (newCreds.password == "") {
+            delete credentials.password;
+        } else {
+            credentials.password = newCreds.password || credentials.password;
+        }
 
-            if (newCreds.user == null || newCreds.user == "") {
-                delete credentials.user;
-            } else {
-                credentials.user = newCreds.user;
-            }
-
-            if (newCreds.password == "") {
-                delete credentials.password;
-            } else {
-                credentials.password = newCreds.password || credentials.password;
-            }
-
-            RED.nodes.addCredentials(req.params.id, credentials);
-            res.send(200);
-        });
+        RED.nodes.addCredentials(req.params.id, credentials);
+        res.send(200);
     });
 
     //
