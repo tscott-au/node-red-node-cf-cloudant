@@ -242,10 +242,18 @@ module.exports = function(RED) {
                         });
                     }
                     else if (node.search === "_idx_") {
-                        options.q = options.q || formatSearchQuery(msg.payload);
+                        options.query = options.query || options.q || formatSearchQuery(msg.payload);
+                        options.include_docs = options.include_docs || true;
                         options.limit = options.limit || 200;
 
                         db.search(node.design, node.index, options, function(err, body) {
+                            sendDocumentOnPayload(err, body, msg);
+                        });
+                    }
+                    else if (node.search === "_all_") {
+                        options.include_docs = options.include_docs || true;
+
+                        db.list(options, function(err, body) {
                             sendDocumentOnPayload(err, body, msg);
                         });
                     }
@@ -280,9 +288,23 @@ module.exports = function(RED) {
 
         function sendDocumentOnPayload(err, body, msg) {
             if (!err) {
-                msg.payload  = body.rows;
                 msg.cloudant = body;
-            } else {
+
+                if ("rows" in body) {
+                    msg.payload = body.rows.
+                        map(function(el) {
+                            if (el.doc._id.indexOf("_design/") < 0) {
+                                return el.doc;
+                            }
+                        }).
+                        filter(function(el) {
+                            return el !== null && el !== undefined;
+                        });
+                } else {
+                    msg.payload = body;
+                }
+            }
+            else {
                 msg.payload = null;
 
                 if (err.description === "missing") {

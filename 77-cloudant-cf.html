@@ -161,6 +161,7 @@
         <select id="node-input-search">
             <option value="_id_">_id</option>
             <option value="_idx_">search index</option>
+            <option value="_all_">all documents</option>
         </select>
     </div>
 
@@ -318,19 +319,34 @@
         A node for searching documents in a Cloudant database.
     </p>
     <p>
-        Searching for a document can be done in two modes: directly by using the
-        document's <b>_id</b> or by using an existing <a
+        Searching for documents can be done in three modes: directly by using the
+        document's <b>_id</b>, by using an existing <a
         href="https://cloudant.com/for-developers/search/" target="_blank">Search
-        Index</a>.
+        Index</a> or retrieving <b>all documents</b> stored in your database.
     </p>
     <p>
-        When querying using the <b>_id</b> option, the value for <code>_id</code>
-        should be passed in the <code>msg.payload</code> as a string.
+        When querying using the <b>_id</b> option, the value for the document's
+        <code>_id</code> should be passed in the <code>msg.payload</code> as a
+        string.
     </p>
     <p>
-        To use an existing <b>Search Index</b> stored on the desired database, the
-        query argument should be passed on the <code>msg.payload</code> following
-        the <code>indexName:value</code> pattern. <i>The index must be created
-        beforehand on the database.</i>
+        To use an existing <b>Search Index</b> stored on the desired database,
+        the query argument should be passed on the <code>msg.payload</code> as a
+        string following the <code>indexName:value</code> pattern. Keep in mind
+        that <i>the index must be created beforehand in the database.</i> and
+        referenced here by its <code>design document/index name</code>.
+    </p>
+    <p>
+        When querying using a <b>Search Index</b> you can pass the search
+        parameters as an object in <code>msg.payload</code>. For example, you
+        can pass an object like this: <code>{ query: "abc*", limit: 100 }</code>
+        to change the value of <code>limit</code>. You can find more information
+        on the accepted parameters in the <a
+        href="https://docs.cloudant.com/api.html?http#queries" target="_blank">
+        official Cloudant documentation</a>.
+    </p>
+    <p>
+        The last method to retrieve documents is to simply get all of them by
+        selecting the option <b>all documents</b>.
     </p>
 </script>
