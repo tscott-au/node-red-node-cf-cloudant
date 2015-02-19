@@ -19,6 +19,7 @@ module.exports = function(RED) {
     var url         = require('url');
     var querystring = require('querystring');
     var cfEnv       = require("cfenv");
+    var Cloudant    = require("cloudant");
 
     var MAX_ATTEMPTS = 3;
 
@@ -64,31 +65,23 @@ module.exports = function(RED) {
     });
 
     RED.httpAdmin.post('/cloudant/:id', function(req,res) {
-        var body = "";
+        var newCreds = req.body;
+        var credentials = RED.nodes.getCredentials(req.params.id) || {};
 
-        req.on('data', function(chunk) {
-            body += chunk;
-        });
+        if (newCreds.user == null || newCreds.user == "") {
+            delete credentials.user;
+        } else {
+            credentials.user = newCreds.user;
+        }
 
-        req.on('end', function() {
-            var newCreds = querystring.parse(body);
-            var credentials = RED.nodes.getCredentials(req.params.id) || {};
+        if (newCreds.password == "") {
+            delete credentials.password;
+        } else {
+            credentials.password = newCreds.password || credentials.password;
+        }
 
-            if (newCreds.user == null || newCreds.user == "") {
-                delete credentials.user;
-            } else {
-                credentials.user = newCreds.user;
-            }
-
-            if (newCreds.password == "") {
-                delete credentials.password;
-            } else {
-                credentials.password = newCreds.password || credentials.password;
-            }
-
-            RED.nodes.addCredentials(req.params.id, credentials);
-            res.send(200);
-        });
+        RED.nodes.addCredentials(req.params.id, credentials);
+        res.send(200);
     });
 
     //
@@ -124,52 +117,59 @@ module.exports = function(RED) {
         this.operation      = n.operation;
         this.payonly        = n.payonly || false;
         this.database       = n.database;
-        this.cloudant       = n.cloudant;
-        this.url            = _getUrl(this, n);
+        this.cloudantConfig = RED.nodes.getNode(n.cloudant);
 
-        if (this.url) {
-            var node = this;
+        var node = this;
+        var credentials = {
+            account:  node.cloudantConfig.credentials.user,
+            password: node.cloudantConfig.credentials.password
+        };
 
-            var nano = require('nano')(this.url);
-            var db   = nano.use(node.database);
+        Cloudant(credentials, function(err, cloudant) {
+            if (err) { node.error(err); }
+            else {
+                // check if the database exists and create it if it doesn't
+                createDatabase(cloudant, node);
 
-            // check if the database exists and create it if it doesn't
-            nano.db.list(function(err, body) {
+                node.on("input", function(msg) {
+                    handleMessage(cloudant, node, msg);
+                });
+            }
+        });
+
+        function createDatabase(cloudant, node) {
+            cloudant.db.list(function(err, all_dbs) {
                 if (err) { node.error(err); }
                 else {
-                    if (body && body.indexOf(node.database) < 0) {
-                        nano.db.create(node.database, function(err, body) {
-                            if (err) { node.error(err); }
-                        });
+                    if (all_dbs && all_dbs.indexOf(node.database) < 0) {
+                        cloudant.db.create(node.database);
                     }
                 }
             });
+        }
 
-            node.on("input", function(msg) {
-                if (node.operation === "insert") {
-                    var msg  = node.payonly ? msg.payload : msg;
-                    var root = node.payonly ? "payload" : "msg";
-                    var doc  = parseMessage(msg, root);
+        function handleMessage(cloudant, node, msg) {
+            if (node.operation === "insert") {
+                var msg  = node.payonly ? msg.payload : msg;
+                var root = node.payonly ? "payload" : "msg";
+                var doc  = parseMessage(msg, root);
 
-                    insertDocument(doc, db, MAX_ATTEMPTS, function(err, body) {
+                insertDocument(cloudant, node, doc, MAX_ATTEMPTS, function(err, body) {
+                    if (err) { node.error(err); }
+                });
+            }
+            else if (node.operation === "delete") {
+                var doc = parseMessage(msg.payload || msg, "");
+
+                if ("_rev" in doc && "_id" in doc) {
+                    var db = cloudant.use(node.database);
+                    db.destroy(doc._id, doc._rev, function(err, body) {
                         if (err) { node.error(err); }
                     });
+                } else {
+                    node.error("_rev and _id are required to delete a document");
                 }
-                else if (node.operation === "delete") {
-                    var doc = parseMessage(msg.payload || msg, "");
-
-                    if ("_rev" in doc && "_id" in doc) {
-                        db.destroy(doc._id, doc._rev, function(err, body) {
-                            if (err) { node.error(err); }
-                        });
-                    } else {
-                        node.error("_rev and _id are required to delete a document");
-                    }
-                }
-            });
-
-        } else {
-            this.error("missing cloudant configuration");
+            }
         }
 
         function parseMessage(msg, root) {
@@ -194,12 +194,13 @@ module.exports = function(RED) {
         // beforehand. If the database doesn't exist, it will create one
         // with the name specified in +db+. To prevent loops, it only tries
         // +attempts+ number of times.
-        function insertDocument(doc, db, attempts, callback) {
+        function insertDocument(cloudant, node, doc, attempts, callback) {
+            var db = cloudant.use(node.database);
             db.insert(doc, function(err, body) {
                 if (err && err.status_code === 404 && attempts > 0) {
                     // status_code 404 means the database was not found
-                    return nano.db.create(db.config.db, function() {
-                        insertDocument(doc, db, attempts-1, callback);
+                    return cloudant.db.create(db.config.db, function() {
+                        insertDocument(cloudant, node, doc, attempts-1, callback);
                     });
                 }
 
@@ -212,52 +213,108 @@ module.exports = function(RED) {
     function CloudantInNode(n) {
         RED.nodes.createNode(this,n);
 
-        this.cloudant  = n.cloudant;
-        this.url       = _getUrl(this, n);
-        this.database  = n.database;
-        this.search    = n.search;
-        this.design    = n.design;
-        this.index     = n.index;
-        this.payloadIn = "";
+        this.cloudantConfig = RED.nodes.getNode(n.cloudant);
+        this.database       = n.database;
+        this.search         = n.search;
+        this.design         = n.design;
+        this.index          = n.index;
+        this.inputId        = "";
 
-        if (this.url) {
-            var node = this;
+        var node = this;
+        var credentials = {
+            account:  node.cloudantConfig.credentials.user,
+            password: node.cloudantConfig.credentials.password
+        };
 
-            var nano = require('nano')(node.url);
-            var db   = nano.use(node.database);
+        Cloudant(credentials, function(err, cloudant) {
+            if (err) { node.error(err); }
+            else {
+                node.on("input", function(msg) {
+                    var db = cloudant.use(node.database);
+                    var options = (typeof msg.payload === "object") ? msg.payload : {};
 
-            node.on("input", function(msg) {
-                node.payloadIn = msg.payload;
+                    if (node.search === "_id_") {
+                        var id = getDocumentId(msg.payload);
+                        node.inputId = id;
 
-                if (node.search === "_id_") {
-                    var id = msg.payload;
-                    db.get(id, function(err, body) {
-                        sendDocumentOnPayload(err, body, msg);
-                    });
+                        db.get(id, function(err, body) {
+                            sendDocumentOnPayload(err, body, msg);
+                        });
+                    }
+                    else if (node.search === "_idx_") {
+                        options.query = options.query || options.q || formatSearchQuery(msg.payload);
+                        options.include_docs = options.include_docs || true;
+                        options.limit = options.limit || 200;
+
+                        db.search(node.design, node.index, options, function(err, body) {
+                            sendDocumentOnPayload(err, body, msg);
+                        });
+                    }
+                    else if (node.search === "_all_") {
+                        options.include_docs = options.include_docs || true;
+
+                        db.list(options, function(err, body) {
+                            sendDocumentOnPayload(err, body, msg);
+                        });
+                    }
+                });
+            }
+        });
+
+        function getDocumentId(payload) {
+            if (typeof payload === "object") {
+                if ("_id" in payload || "id" in payload) {
+                    return payload.id || payload._id;
                 }
-                else if (node.search === "_idx_") {
-                    var query = { q: msg.payload, limit: 200 };
-                    db.search(node.design, node.index, query, function(err, body) {
-                        sendDocumentOnPayload(err, body, msg);
-                    });
+            }
+
+            return payload;
+        }
+
+        function formatSearchQuery(query) {
+            if (typeof query === "object") {
+                // useful when passing the query on HTTP params
+                if ("q" in query) { return query.q; }
+
+                var queryString = "";
+                for (var key in query) {
+                    queryString += key + ":" + query[key] + " ";
                 }
-            });
+
+                return queryString.trim();
+            }
+            return query;
         }
 
         function sendDocumentOnPayload(err, body, msg) {
             if (!err) {
-                msg.payload = body;
-            } else {
+                msg.cloudant = body;
+
+                if ("rows" in body) {
+                    msg.payload = body.rows.
+                        map(function(el) {
+                            if (el.doc._id.indexOf("_design/") < 0) {
+                                return el.doc;
+                            }
+                        }).
+                        filter(function(el) {
+                            return el !== null && el !== undefined;
+                        });
+                } else {
+                    msg.payload = body;
+                }
+            }
+            else {
                 msg.payload = null;
 
                 if (err.description === "missing") {
-                    node.warn("Document '" + node.payloadIn+ "' not found in database '" +
+                    node.warn("Document '" + node.inputId + "' not found in database '" +
                                 node.database + "'.");
                 } else {
                     node.error(err.reason);
                 }
             }
-            
+
             node.send(msg);
         }
     }
@@ -265,7 +322,7 @@ module.exports = function(RED) {
 
     function _getUrl(node, n) {
         if (n.service == "_ext_") {
-            var cloudantConfig = RED.nodes.getNode(node.cloudant);
+            var cloudantConfig = RED.nodes.getNode(node.cloudantConfig);
             if (cloudantConfig) {
                 return cloudantConfig.url;
             }
