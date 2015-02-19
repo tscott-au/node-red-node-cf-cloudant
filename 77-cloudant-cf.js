@@ -231,6 +231,7 @@ module.exports = function(RED) {
             else {
                 node.on("input", function(msg) {
                     var db = cloudant.use(node.database);
+                    var options = (typeof msg.payload === "object") ? msg.payload : {};
 
                     if (node.search === "_id_") {
                         var id = getDocumentId(msg.payload);
@@ -241,8 +242,10 @@ module.exports = function(RED) {
                         });
                     }
                     else if (node.search === "_idx_") {
-                        var query = { q: formatSearchQuery(msg.payload) };
-                        db.search(node.design, node.index, query, function(err, body) {
+                        options.q = options.q || formatSearchQuery(msg.payload);
+                        options.limit = options.limit || 200;
+
+                        db.search(node.design, node.index, options, function(err, body) {
                             sendDocumentOnPayload(err, body, msg);
                         });
                     }
@@ -277,7 +280,8 @@ module.exports = function(RED) {
 
         function sendDocumentOnPayload(err, body, msg) {
             if (!err) {
-                msg.payload = body;
+                msg.payload  = body.rows;
+                msg.cloudant = body;
             } else {
                 msg.payload = null;
 
