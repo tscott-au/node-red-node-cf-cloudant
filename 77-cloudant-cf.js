@@ -50,7 +50,7 @@ module.exports = function(RED) {
         if (credentials) {
             res.send(JSON.stringify(
               {
-                  user: credentials.user,
+                  username: credentials.username,
                   hasPassword: (credentials.password && credentials.password !== "")
               }
             ));
@@ -68,10 +68,10 @@ module.exports = function(RED) {
         var newCreds = req.body;
         var credentials = RED.nodes.getCredentials(req.params.id) || {};
 
-        if (newCreds.user == null || newCreds.user == "") {
-            delete credentials.user;
+        if (newCreds.username == null || newCreds.username == "") {
+            delete credentials.username;
         } else {
-            credentials.user = newCreds.user;
+            credentials.username = newCreds.username;
         }
 
         if (newCreds.password == "") {
@@ -95,7 +95,7 @@ module.exports = function(RED) {
 
         var credentials = RED.nodes.getCredentials(n.id);
         if (credentials) {
-            this.username = credentials.user;
+            this.username = credentials.username;
             this.password = credentials.password;
         }
 
@@ -117,11 +117,11 @@ module.exports = function(RED) {
         this.operation      = n.operation;
         this.payonly        = n.payonly || false;
         this.database       = n.database;
-        this.cloudantConfig = RED.nodes.getNode(n.cloudant);
+        this.cloudantConfig = _getCloudantConfig(n);
 
         var node = this;
         var credentials = {
-            account:  node.cloudantConfig.credentials.user,
+            account:  node.cloudantConfig.credentials.username,
             password: node.cloudantConfig.credentials.password
         };
 
@@ -213,7 +213,7 @@ module.exports = function(RED) {
     function CloudantInNode(n) {
         RED.nodes.createNode(this,n);
 
-        this.cloudantConfig = RED.nodes.getNode(n.cloudant);
+        this.cloudantConfig = _getCloudantConfig(n);
         this.database       = n.database;
         this.search         = n.search;
         this.design         = n.design;
@@ -222,7 +222,7 @@ module.exports = function(RED) {
 
         var node = this;
         var credentials = {
-            account:  node.cloudantConfig.credentials.user,
+            account:  node.cloudantConfig.credentials.username,
             password: node.cloudantConfig.credentials.password
         };
 
@@ -320,18 +320,11 @@ module.exports = function(RED) {
     }
     RED.nodes.registerType("cloudant in", CloudantInNode);
 
-    function _getUrl(node, n) {
-        if (n.service == "_ext_") {
-            var cloudantConfig = RED.nodes.getNode(node.cloudantConfig);
-            if (cloudantConfig) {
-                return cloudantConfig.url;
-            }
-        }
-        else if (n.service != "") {
-            var cloudantConfig = appEnv.getService(n.service);
-            if (cloudantConfig) {
-                return cloudantConfig.credentials.url;
-            }
+    function _getCloudantConfig(n) {
+        if (n.service === "_ext_") {
+            return RED.nodes.getNode(n.cloudant);
+        } else if (n.service !== "") {
+            return appEnv.getService(n.service);
         }
     }
 };
