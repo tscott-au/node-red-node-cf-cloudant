@@ -245,6 +245,10 @@ module.exports = function(RED) {
                         options.query = options.query || options.q || formatSearchQuery(msg.payload);
                         options.include_docs = options.include_docs || true;
                         options.limit = options.limit || 200;
+                        
+                        if (options.sort) {
+                            options.sort = JSON.stringify(options.sort);
+                        }
 
                         db.search(node.design, node.index, options, function(err, body) {
                             sendDocumentOnPayload(err, body, msg);
