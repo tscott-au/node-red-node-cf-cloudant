@@ -116,7 +116,7 @@ module.exports = function(RED) {
 
         this.operation      = n.operation;
         this.payonly        = n.payonly || false;
-        this.database       = n.database;
+        this.database       = _cleanDatabaseName(n.database, this);
         this.cloudantConfig = _getCloudantConfig(n);
 
         var node = this;
@@ -187,7 +187,34 @@ module.exports = function(RED) {
                     msg = JSON.parse('{"' + root + '":"' + msg + '"}');
                 }
             }
+            return cleanMessage(msg);
+        }
+
+        // fix field values that start with _
+        // https://wiki.apache.org/couchdb/HTTP_Document_API#Special_Fields
+        function cleanMessage(msg) {
+            for (var key in msg) {
+                if (msg.hasOwnProperty(key) && !isFieldNameValid(key)) {
+                    // remove _ from the start of the field name
+                    var newKey = key.substring(1, msg.length);
+
+                    msg[newKey] = msg[key];
+                    delete msg[key];
+
+                    node.warn("Property '" + key + "' renamed to '" + newKey + "'.");
+                }
+            }
+
             return msg;
+        }
+
+        function isFieldNameValid(key) {
+            var allowedWords = [
+                '_id', '_rev', '_attachments', '_deleted', '_revisions',
+                '_revs_info', '_conflicts', '_deleted_conflicts', '_local_seq'
+            ];
+
+            return key[0] !== '_' || allowedWords.indexOf(key) >= 0;
         }
 
         // Inserts a document +doc+ in a database +db+ that migh not exist
@@ -214,7 +241,7 @@ module.exports = function(RED) {
         RED.nodes.createNode(this,n);
 
         this.cloudantConfig = _getCloudantConfig(n);
-        this.database       = n.database;
+        this.database       = _cleanDatabaseName(n.database, this);
         this.search         = n.search;
         this.design         = n.design;
         this.index          = n.index;
@@ -245,7 +272,7 @@ module.exports = function(RED) {
                         options.query = options.query || options.q || formatSearchQuery(msg.payload);
                         options.include_docs = options.include_docs || true;
                         options.limit = options.limit || 200;
-                        
+
                         if (options.sort) {
                             options.sort = JSON.stringify(options.sort);
                         }
@@ -330,5 +357,24 @@ module.exports = function(RED) {
         } else if (n.service !== "") {
             return appEnv.getService(n.service);
         }
+    }
+
+    // remove invalid characters from the database name
+    // https://wiki.apache.org/couchdb/HTTP_database_API#Naming_and_Addressing
+    function _cleanDatabaseName(database, node) {
+        var newDatabase = database;
+
+        // caps are not allowed
+        newDatabase = newDatabase.toLowerCase();
+        // remove trailing underscore
+        newDatabase = newDatabase.replace(/^_/, '');
+        // remove spaces and slashed
+        newDatabase = newDatabase.replace(/[\s\\/]+/g, '-');
+
+        if (newDatabase !== database) {
+            node.warn("Database renamed  as '" + newDatabase + "'.");
+        }
+
+        return newDatabase;
     }
 };
