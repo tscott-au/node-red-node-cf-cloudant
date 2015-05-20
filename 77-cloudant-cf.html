@@ -16,9 +16,9 @@
 
 <script type="text/x-red" data-template-name="cloudant">
     <div class="form-row">
-        <label for="node-config-input-hostname"><i class="fa fa-bookmark"></i> Host</label>
-        <input class="input-append-left" type="text" id="node-config-input-hostname"
-               placeholder="https://[username].cloudant.com">
+        <label for="node-config-input-host"><i class="fa fa-bookmark"></i> Host</label>
+        <input class="input-append-left" type="text" id="node-config-input-host"
+               placeholder="[username].cloudant.com">
     </div>
 
     <div class="form-row">
@@ -42,13 +42,13 @@
         category: "config",
         color: "rgb(114, 199, 231)",
         defaults: {
-            hostname: { value: "", required: true },
+            host: { value: "", required: true },
             name: { value: "" },
             //user -> credentials
             //pass -> credentials
         },
         label: function() {
-            return this.name || this.hostname;
+            return this.name || this.host;
         },
         oneditprepare: function() {
             $.getJSON("cloudant/"+this.id, function(data) {
@@ -186,7 +186,7 @@
             service: { value: "", required: true },
             cloudant: { type: "cloudant", validate: validateServer},
             name: { value: "" },
-            database: { value: "", required: true },
+            database: { value: "", required: true, validate: validateDatabase },
             payonly: { value: false },
             operation: { value: "insert" }
         },
@@ -208,7 +208,7 @@
             service : { value: "", required: true },
             cloudant: { type: "cloudant", validate: validateServer },
             name    : { value: "" },
-            database: { value: "", required: true },
+            database: { value: "", required: true, validate: validateDatabase },
             search  : { value: "_id_", required: true },
             design  : { value: "" },
             index   : { value: "" }
@@ -286,6 +286,12 @@
     function validateServer(v) {
         return this.service != "_ext_" || v != "_ADD_";
     }
+
+    // https://wiki.apache.org/couchdb/HTTP_database_API#Naming_and_Addressing
+    function validateDatabase(v) {
+        return (v.indexOf('_') !== 0) &&
+               (v.search(/[A-Z\s\\/]/g) < 0)
+    }
 </script>
 
 <script type="text/x-red" data-help-name="cloudant out">
@@ -307,10 +313,24 @@
     </p>
     <p>
         It is also possible to <b>delete</b> documents from the database by
-        providing values for <code>_id</b> and <code>_rev</code> and selecting
+        providing values for <code>_id</code> and <code>_rev</code> and selecting
         the <b>remove</b> option for the node. You can pass these values in the
         <code>msg</code> object itself or as an object in the
         <code>msg.payload</code>.
+    </p>
+    <p>
+        The <b>database name</b> must follow these rules:
+        <ul>
+            <li>No spaces</li>
+            <li>All letters in small caps</li>
+            <li>The first character can't be <code>_</code></li>
+        </ul>
+    </p>
+    <p>
+        Your document should avoid having top-level fields that start with
+        <code>_</code>, with exceptions for <code>_id</code>, <code>_rev</code>
+        and other <a href="https://wiki.apache.org/couchdb/HTTP_Document_API#Special_Fields">
+        CouchDB reserved words</a>.
     </p>
 </script>
 
@@ -338,15 +358,29 @@
     </p>
     <p>
         When querying using a <b>Search Index</b> you can pass the search
-        parameters as an object in <code>msg.payload</code>. For example, you
-        can pass an object like this: <code>{ query: "abc*", limit: 100 }</code>
+        parameters as an object in <code>msg.payload</code>.
+    </p>
+    <p>
+        For example, you can pass an object like this:
+    <p>
+        <code>{ query: "abc*", limit: 100 }</code>
+    </p>
+    <p>
         to change the value of <code>limit</code>. You can find more information
-        on the accepted parameters in the <a
+        about <b>Search Index</b> parameters in the <a
         href="https://docs.cloudant.com/api.html?http#queries" target="_blank">
         official Cloudant documentation</a>.
     </p>
     <p>
         The last method to retrieve documents is to simply get all of them by
         selecting the option <b>all documents</b>.
+    </p>
+    <p>
+        The <b>database name</b> must follow these rules:
+        <ul>
+            <li>No spaces</li>
+            <li>All letters in small caps</li>
+            <li>The first character can't be <code>_</code></li>
+        </ul>
     </p>
 </script>
