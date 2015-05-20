@@ -140,9 +140,9 @@ module.exports = function(RED) {
         function createDatabase(cloudant, node) {
             cloudant.db.list(function(err, all_dbs) {
                 if (err) {
-                    if (err.error !== 'forbidden') {
-                        // if err.error is 'forbidden' then we are using an api
-                        // key, so we can assume the database already exists
+                    if (err.status_code === 403) {
+                        // if err.status_code is 403 then we are probably using
+                        // an api key, so we can assume the database already exists
                         return;
                     }
                     node.error("Failed to list databases: " + err.description, err);
