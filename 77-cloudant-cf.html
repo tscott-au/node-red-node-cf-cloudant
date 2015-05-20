@@ -16,9 +16,9 @@
 
 <script type="text/x-red" data-template-name="cloudant">
     <div class="form-row">
-        <label for="node-config-input-hostname"><i class="fa fa-bookmark"></i> Host</label>
-        <input class="input-append-left" type="text" id="node-config-input-hostname"
-               placeholder="https://[username].cloudant.com">
+        <label for="node-config-input-host"><i class="fa fa-bookmark"></i> Host</label>
+        <input class="input-append-left" type="text" id="node-config-input-host"
+               placeholder="[username].cloudant.com">
     </div>
 
     <div class="form-row">
@@ -42,13 +42,13 @@
         category: "config",
         color: "rgb(114, 199, 231)",
         defaults: {
-            hostname: { value: "", required: true },
+            host: { value: "", required: true },
             name: { value: "" },
             //user -> credentials
             //pass -> credentials
         },
         label: function() {
-            return this.name || this.hostname;
+            return this.name || this.host;
         },
         oneditprepare: function() {
             $.getJSON("cloudant/"+this.id, function(data) {

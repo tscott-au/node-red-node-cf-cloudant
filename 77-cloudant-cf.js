@@ -90,24 +90,23 @@ module.exports = function(RED) {
     function CloudantNode(n) {
         RED.nodes.createNode(this, n);
 
-        this.name     = n.name;
-        this.hostname = n.hostname;
+        this.name = n.name;
+        this.host = n.host;
+
+        // remove unnecessary parts from host value
+        var parsedUrl = url.parse(this.host);
+        if (parsedUrl.host) {
+            this.host = parsedUrl.host;
+        }
+
+        // extract only the account name
+        this.account = this.host.substring(0, this.host.indexOf('.'));
 
         var credentials = RED.nodes.getCredentials(n.id);
         if (credentials) {
             this.username = credentials.username;
             this.password = credentials.password;
         }
-
-        var parsedUrl = url.parse(this.hostname);
-        var authUrl   = parsedUrl.protocol+'//';
-
-        if (this.username && this.password) {
-            authUrl += this.username + ":" + encodeURIComponent(this.password) + "@";
-        }
-        authUrl += parsedUrl.hostname;
-
-        this.url = authUrl;
     }
     RED.nodes.registerType("cloudant", CloudantNode);
 
@@ -121,12 +120,13 @@ module.exports = function(RED) {
 
         var node = this;
         var credentials = {
-            account:  node.cloudantConfig.credentials.username,
-            password: node.cloudantConfig.credentials.password
+            account:  node.cloudantConfig.account,
+            key:      node.cloudantConfig.username,
+            password: node.cloudantConfig.password
         };
 
         Cloudant(credentials, function(err, cloudant) {
-            if (err) { node.error(err); }
+            if (err) { node.error(err.description, err); }
             else {
                 // check if the database exists and create it if it doesn't
                 createDatabase(cloudant, node);
@@ -139,10 +139,24 @@ module.exports = function(RED) {
 
         function createDatabase(cloudant, node) {
             cloudant.db.list(function(err, all_dbs) {
-                if (err) { node.error(err); }
+                if (err) {
+                    if (err.error !== 'forbidden') {
+                        // if err.error is 'forbidden' then we are using an api
+                        // key, so we can assume the database already exists
+                        return;
+                    }
+                    node.error("Failed to list databases: " + err.description, err);
+                }
                 else {
                     if (all_dbs && all_dbs.indexOf(node.database) < 0) {
-                        cloudant.db.create(node.database);
+                        cloudant.db.create(node.database, function(err, body) {
+                            if (err) {
+                                node.error(
+                                    "Failed to create database: " + err.description,
+                                    err
+                                );
+                            }
+                        });
                     }
                 }
             });
@@ -155,7 +169,12 @@ module.exports = function(RED) {
                 var doc  = parseMessage(msg, root);
 
                 insertDocument(cloudant, node, doc, MAX_ATTEMPTS, function(err, body) {
-                    if (err) { node.error(err); }
+                    if (err) {
+                        node.error(
+                            "Failed to insert document: " + err.description,
+                            err
+                        );
+                    }
                 });
             }
             else if (node.operation === "delete") {
@@ -164,10 +183,16 @@ module.exports = function(RED) {
                 if ("_rev" in doc && "_id" in doc) {
                     var db = cloudant.use(node.database);
                     db.destroy(doc._id, doc._rev, function(err, body) {
-                        if (err) { node.error(err); }
+                        if (err) {
+                            node.error(
+                                "Failed to delete document: " + err.description,
+                                err
+                            );
+                        }
                     });
                 } else {
-                    node.error("_rev and _id are required to delete a document");
+                    var err = new Error("_id and _rev are required to delete a document");
+                    node.error(err.message, err);
                 }
             }
         }
@@ -249,12 +274,13 @@ module.exports = function(RED) {
 
         var node = this;
         var credentials = {
-            account:  node.cloudantConfig.credentials.username,
-            password: node.cloudantConfig.credentials.password
+            account:  node.cloudantConfig.account,
+            key:      node.cloudantConfig.username,
+            password: node.cloudantConfig.password
         };
 
         Cloudant(credentials, function(err, cloudant) {
-            if (err) { node.error(err); }
+            if (err) { node.error(err.description, err); }
             else {
                 node.on("input", function(msg) {
                     var db = cloudant.use(node.database);
@@ -339,10 +365,13 @@ module.exports = function(RED) {
                 msg.payload = null;
 
                 if (err.description === "missing") {
-                    node.warn("Document '" + node.inputId + "' not found in database '" +
-                                node.database + "'.");
+                    node.warn(
+                        "Document '" + node.inputId +
+                        "' not found in database '" + node.database + "'.",
+                        err
+                    );
                 } else {
-                    node.error(err.reason);
+                    node.error(err.description, err);
                 }
             }
 
@@ -351,11 +380,23 @@ module.exports = function(RED) {
     }
     RED.nodes.registerType("cloudant in", CloudantInNode);
 
+    // must return an object with, at least, values for account, username and
+    // password for the Cloudant service at the top-level of the object
     function _getCloudantConfig(n) {
         if (n.service === "_ext_") {
             return RED.nodes.getNode(n.cloudant);
+
         } else if (n.service !== "") {
-            return appEnv.getService(n.service);
+            var service        = appEnv.getService(n.service);
+            var cloudantConfig = { };
+
+            var host = service.credentials.host;
+
+            cloudantConfig.username = service.credentials.username;
+            cloudantConfig.password = service.credentials.password;
+            cloudantConfig.account  = host.substring(0, host.indexOf('.'));
+
+            return cloudantConfig;
         }
     }
 
