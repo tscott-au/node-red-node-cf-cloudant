@@ -1,28 +1,43 @@
 {
-    "name"         : "node-red-node-cf-cloudant",
-    "version"      : "0.2.14",
-    "description"  : "A Node-RED node to access a Cloudant database on Bluemix",
-    "dependencies" : {
-        "cfenv"   : "1.0.0",
-        "cloudant": "1.0.0-beta3"
+  "name": "node-red-node-cf-cloudant",
+  "version": "0.2.15",
+  "description": "A Node-RED node to access Cloudant and couchdb databases",
+  "dependencies": {
+    "cfenv": "1.0.0",
+    "cloudant": "1.4.*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lgfa29/node-red-node-cf-cloudant.git"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "node-red",
+    "cloudant",
+    "couchdb",
+    "bluemix"
+  ],
+  "node-red": {
+    "nodes": {
+      "cloudant-cf": "77-cloudant-cf.js"
+    }
+  },
+  "author": {
+    "name": "Luiz Gustavo Ferraz Aoqui",
+    "email": "laoqui@br.ibm.com"
+  },
+  "contributors": [
+    {
+      "name": "Túlio Pascoal"
     },
-    "repository" : {
-        "type" : "git",
-        "url"  : "https://hub.jazz.net/git/laoqui2/node-red-node-cf-cloudant"
-    },
-    "license"  : "Apache",
-    "keywords" : [ "node-red", "cloudant", "bluemix" ],
-    "node-red" : {
-        "nodes" : {
-            "cloudant-cf" : "77-cloudant-cf.js"
-        }
-    },
-    "author" : {
-        "name" : "Luiz Gustavo Ferraz Aoqui",
-        "email": "laoqui@br.ibm.com"
-    },
-    "contributors" : [
-        { "name": "Túlio Pascoal" },
-        { "name": "Igor Leão" }
-    ]
+    {
+      "name": "Igor Leão"
+    }
+  ],
+  "maintainers": [
+    {
+      "name": "luiz_aoqui",
+      "email": "laoqui@br.ibm.com"
+    }
+  ]
 }

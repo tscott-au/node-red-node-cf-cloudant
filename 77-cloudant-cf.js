@@ -1,5 +1,5 @@
 /**
- * Copyright 2014 IBM Corp.
+ * Copyright 2014,2016 IBM Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
  **/
 module.exports = function(RED) {
     "use strict";
-
     var url         = require('url');
     var querystring = require('querystring');
     var cfEnv       = require("cfenv");
@@ -26,13 +25,15 @@ module.exports = function(RED) {
     var appEnv   = cfEnv.getAppEnv();
     var services = [];
 
-    // load the services bindded to this application
+    // load the services bound to this application
     for (var i in appEnv.services) {
-        // filter the services to include only the Cloudant ones
-        if (i.match(/^(cloudant)/i)) {
-            services = services.concat(appEnv.services[i].map(function(v) {
-                return { name: v.name, label: v.label };
-            }));
+        if (appEnv.services.hasOwnProperty(i)) {
+            // filter the services to include only the Cloudant ones
+            if (i.match(/^(cloudant)/i)) {
+                services = services.concat(appEnv.services[i].map(function(v) {
+                    return { name: v.name, label: v.label };
+                }));
+            }
         }
     }
 
@@ -43,72 +44,36 @@ module.exports = function(RED) {
         res.send(JSON.stringify(services));
     });
 
-    // REMINDER: routes are order dependent
-    RED.httpAdmin.get('/cloudant/:id', function(req,res) {
-        var credentials = RED.nodes.getCredentials(req.params.id);
-
-        if (credentials) {
-            res.send(JSON.stringify(
-              {
-                  username: credentials.username,
-                  hasPassword: (credentials.password && credentials.password !== "")
-              }
-            ));
-        } else {
-            res.send(JSON.stringify({}));
-        }
-    });
-
-    RED.httpAdmin.delete('/cloudant/:id', function(req,res) {
-        RED.nodes.deleteCredentials(req.params.id);
-        res.send(200);
-    });
-
-    RED.httpAdmin.post('/cloudant/:id', function(req,res) {
-        var newCreds = req.body;
-        var credentials = RED.nodes.getCredentials(req.params.id) || {};
-
-        if (newCreds.username == null || newCreds.username == "") {
-            delete credentials.username;
-        } else {
-            credentials.username = newCreds.username;
-        }
-
-        if (newCreds.password == "") {
-            delete credentials.password;
-        } else {
-            credentials.password = newCreds.password || credentials.password;
-        }
-
-        RED.nodes.addCredentials(req.params.id, credentials);
-        res.send(200);
-    });
-
     //
     // Create and register nodes
     //
     function CloudantNode(n) {
         RED.nodes.createNode(this, n);
-
         this.name = n.name;
         this.host = n.host;
+        this.url = n.host;
 
         // remove unnecessary parts from host value
         var parsedUrl = url.parse(this.host);
         if (parsedUrl.host) {
             this.host = parsedUrl.host;
         }
-
-        // extract only the account name
-        this.account = this.host.substring(0, this.host.indexOf('.'));
-
-        var credentials = RED.nodes.getCredentials(n.id);
-        if (credentials) {
-            this.username = credentials.username;
-            this.password = credentials.password;
+        if (this.host.indexOf("cloudant.com")!==-1) {
+            // extract only the account name
+            this.account = this.host.substring(0, this.host.indexOf('.'));
+            delete this.url;
         }
+        var credentials = this.credentials;
+        if ((credentials) && (credentials.hasOwnProperty("username"))) { this.username = credentials.username; }
+        if ((credentials) && (credentials.hasOwnProperty("pass"))) { this.password = credentials.pass; }
     }
-    RED.nodes.registerType("cloudant", CloudantNode);
+    RED.nodes.registerType("cloudant", CloudantNode, {
+        credentials: {
+            pass: {type:"password"},
+            username: {type:"text"}
+        }
+    });
+
 
     function CloudantOutNode(n) {
         RED.nodes.createNode(this,n);
@@ -122,7 +87,8 @@ module.exports = function(RED) {
         var credentials = {
             account:  node.cloudantConfig.account,
             key:      node.cloudantConfig.username,
-            password: node.cloudantConfig.password
+            password: node.cloudantConfig.password,
+            url: node.cloudantConfig.url
         };
 
         Cloudant(credentials, function(err, cloudant) {
@@ -132,6 +98,7 @@ module.exports = function(RED) {
                 createDatabase(cloudant, node);
 
                 node.on("input", function(msg) {
+                    delete msg._msgid;
                     handleMessage(cloudant, node, msg);
                 });
             }
@@ -170,10 +137,9 @@ module.exports = function(RED) {
 
                 insertDocument(cloudant, node, doc, MAX_ATTEMPTS, function(err, body) {
                     if (err) {
-                        node.error(
-                            "Failed to insert document: " + err.description,
-                            err
-                        );
+                        console.trace();
+                        console.log(node.error.toString());
+                        node.error("Failed to insert document: " + err.description, msg);
                     }
                 });
             }
@@ -184,15 +150,12 @@ module.exports = function(RED) {
                     var db = cloudant.use(node.database);
                     db.destroy(doc._id, doc._rev, function(err, body) {
                         if (err) {
-                            node.error(
-                                "Failed to delete document: " + err.description,
-                                err
-                            );
+                            node.error("Failed to delete document: " + err.description, msg);
                         }
                     });
                 } else {
                     var err = new Error("_id and _rev are required to delete a document");
-                    node.error(err.message, err);
+                    node.error(err.message, msg);
                 }
             }
         }
@@ -201,7 +164,6 @@ module.exports = function(RED) {
             if (typeof msg !== "object") {
                 try {
                     msg = JSON.parse(msg);
-
                     // JSON.parse accepts numbers, so make sure that an
                     // object is return, otherwise create a new one
                     if (typeof msg !== "object") {
@@ -222,14 +184,11 @@ module.exports = function(RED) {
                 if (msg.hasOwnProperty(key) && !isFieldNameValid(key)) {
                     // remove _ from the start of the field name
                     var newKey = key.substring(1, msg.length);
-
                     msg[newKey] = msg[key];
                     delete msg[key];
-
                     node.warn("Property '" + key + "' renamed to '" + newKey + "'.");
                 }
             }
-
             return msg;
         }
 
@@ -238,7 +197,6 @@ module.exports = function(RED) {
                 '_id', '_rev', '_attachments', '_deleted', '_revisions',
                 '_revs_info', '_conflicts', '_deleted_conflicts', '_local_seq'
             ];
-
             return key[0] !== '_' || allowedWords.indexOf(key) >= 0;
         }
 
@@ -262,6 +220,7 @@ module.exports = function(RED) {
     };
     RED.nodes.registerType("cloudant out", CloudantOutNode);
 
+
     function CloudantInNode(n) {
         RED.nodes.createNode(this,n);
 
@@ -276,7 +235,8 @@ module.exports = function(RED) {
         var credentials = {
             account:  node.cloudantConfig.account,
             key:      node.cloudantConfig.username,
-            password: node.cloudantConfig.password
+            password: node.cloudantConfig.password,
+            url: node.cloudantConfig.url
         };
 
         Cloudant(credentials, function(err, cloudant) {
