@@ -1,6 +1,6 @@
 {
   "name": "node-red-node-cf-cloudant",
-  "version": "0.2.15",
+  "version": "0.2.16",
   "description": "A Node-RED node to access Cloudant and couchdb databases",
   "dependencies": {
     "cfenv": "1.0.0",
