@@ -1,0 +1,138 @@
+<!--
+  Copyright 2014,2016 IBM Corp.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+{{> helpers.html}}
+
+<!-- Configuration node -->
+<script type="text/javascript">
+    RED.nodes.registerType('cloudant', {
+        category: 'config',
+        color: 'rgb(114, 199, 231)',
+        defaults: {
+            host: { value: '', required: true },
+            name: { value: '' }
+        },
+        credentials: {
+            username: { type: 'text' },
+            pass: { type: 'password' }
+        },
+        label: function() {
+            return this.name || this.host;
+        }
+    });
+</script>
+<script type="text/x-red" data-template-name="cloudant">
+    {{> configuration_form.html }}
+</script>
+
+<!-- Modify node -->
+<script type="text/javascript">
+    RED.nodes.registerType('cloudant out', {
+        category: 'storage-output',
+        color: 'rgb(114, 199, 231)',
+        defaults: {
+            name: { value: '' },
+            cloudant: { type: 'cloudant', validate: validateServer },
+            database: { value: '', required: true, validate: validateDatabase },
+            service: { value: '', required: true },
+            payonly: { value: false },
+            operation: { value: 'insert' },
+            sendresult: { value: false },
+            outputs: { value: 0 }
+        },
+        inputs: 1,
+        outputs: 0,
+        icon: 'cloudant.png',
+        align: 'right',
+        label: label,
+        labelStyle: labelStyle,
+        oneditprepare: function() {
+            prepareBluemixServices(this);
+        },
+        oneditsave: function() {
+            // for backwards compatibility, sets the value of sendresult based
+            // on the checkbox state
+            this.sendresult = $('#node-input-sendresult').is(':checked');
+            this.outputs = this.sendresult ? 1 : 0;
+        }
+    });
+</script>
+<script type="text/x-red" data-template-name="cloudant out">
+    {{> modify_form.html}}
+</script>
+<script type="text/x-red" data-help-name="cloudant out">
+    {{> modify_help.html}}
+</script>
+
+<!-- Query node -->
+<script type="text/javascript">
+    RED.nodes.registerType('cloudant in', {
+        category: 'storage-input',
+        color: 'rgb(114, 199, 231)',
+        defaults: {
+            name: { value: '' },
+            cloudant: { type: 'cloudant', validate: validateServer },
+            database: { value: '', required: true, validate: validateDatabase },
+            service: { value: '', required: true },
+            search: { value: '_id_', required: true },
+            design: { value: '' },
+            index: { value: '' }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: 'cloudant.png',
+        label: label,
+        labelStyle: labelStyle,
+        oneditprepare: function() {
+            prepareBluemixServices(this);
+            prepareSearchBy(this);
+        }
+    });
+</script>
+<script type="text/x-red" data-template-name="cloudant in">
+    {{> query_form.html}}
+</script>
+<script type="text/x-red" data-help-name="cloudant in">
+    {{> query_help.html}}
+</script>
+
+<!-- Attachment node -->
+<script type="text/javascript">
+    RED.nodes.registerType('cloudant attachment in', {
+        category: 'storage-input',
+        color: 'rgb(114, 199, 231)',
+        defaults: {
+            name: { value: '' },
+            cloudant: { type: 'cloudant', validate: validateServer },
+            database: { value: '', required: true, validate: validateDatabase },
+            service: { value: '', required: true },
+            docid: { value: '' },
+            attachmentname: { value: '' },
+            encoding: { value: 'none', validate: validateEncoding }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: 'cloudant.png',
+        label: label,
+        labelStyle: labelStyle,
+        oneditprepare: function() {
+            prepareBluemixServices(this);
+        }
+    });
+</script>
+<script type="text/x-red" data-template-name="cloudant attachment in">
+    {{> attachment_form.html}}
+</script>

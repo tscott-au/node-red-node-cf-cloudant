@@ -1,0 +1,75 @@
+<script type="text/javascript">
+    function prepareBluemixServices(node) {
+        var serviceSelect  = $('#node-input-service');
+
+        $.getJSON('cloudant/vcap/',function(data) {
+            var last = serviceSelect.children().last();
+            var opts = [];
+
+            for (var i=0; i < data.length; i++) {
+                var selected = node.service == data[i].name;
+                opts.push('<option value="' + data[i].name + '"' + (selected ? " selected":"") + '>' + data[i].name + '</option>');
+            }
+
+            if (opts.length == 0) {
+                node.service = "_ext_";
+                serviceSelect.find("option").filter(function() {
+                    return $(this).val() == node.service;
+                }).attr('selected', true);
+            } else {
+                last.before(opts.join(""));
+            }
+
+            serviceSelect.change();
+        });
+
+        serviceSelect.change(function() {
+            var service = serviceSelect.val();
+            if (service == "_ext_") {
+                $("#node-input-external-details").show();
+            } else {
+                $("#node-input-external-details").hide();
+            }
+        });
+    }
+
+    function prepareSearchBy(node) {
+        var searchBySelect = $('#node-input-search');
+        var searchForm     = $('#node-search-index-form');
+
+        searchBySelect.change(function() {
+            var searchBy = searchBySelect.val();
+
+            if (searchBy === "_idx_") {
+                node._def.defaults.design.required = true;
+                node._def.defaults.index.required  = true;
+                searchForm.show();
+            } else {
+                node._def.defaults.design.required = false;
+                node._def.defaults.index.required  = false;
+                searchForm.hide();
+            }
+        });
+    }
+
+    function label() {
+        return this.name || this.database || "cloudant";
+    }
+
+    function labelStyle() {
+        return this.name ? 'node_label_italic' : '';
+    }
+
+    function validateServer(v) {
+        return this.service != "_ext_" || v != "_ADD_";
+    }
+
+    // https://wiki.apache.org/couchdb/HTTP_database_API#Naming_and_Addressing
+    function validateDatabase(v) {
+        return (v.indexOf('_') !== 0) && (v.search(/[A-Z\s\\/]/g) < 0)
+    }
+
+    function validateEncoding(v) {
+        return ['none', 'base64'].indexOf(v) >= 0;
+    }
+</script>

@@ -1,0 +1,33 @@
+<div class="form-row">
+    <label for="node-input-service"><i class="fa fa-folder-close"></i> Service</label>
+    <select id="node-input-service" style="width:68%;">
+        <!-- <option value="" disabled></option> -->
+        <option value="_ext_"> External cloudant or couchdb service</option>
+    </select>
+</div>
+<div class="form-row hide" id="node-input-external-details">
+    <label for="node-input-cloudant"><i class="fa fa-bookmark"></i> Server</label>
+    <input type="text" id="node-input-cloudant">
+</div>
+<div class="form-row">
+    <label for="node-input-database"><i class="fa fa-briefcase"></i> Database</label>
+    <input type="text" id="node-input-database" placeholder="database" style="width:65%;">
+</div>
+<div class="form-row">
+    <label for="node-input-search"><i class="fa fa-search"></i> Search by</label>
+    <select id="node-input-search" style="width:68%;">
+        <option value="_id_">_id</option>
+        <option value="_idx_">search index</option>
+        <option value="_all_">all documents</option>
+    </select>
+</div>
+<div id="node-search-index-form" class="form-row">
+    <label>&nbsp;</label>
+    <input type="text" id="node-input-design" style="width:30%" placeholder="design document">
+    /
+    <input type="text" id="node-input-index" style="width:30%" placeholder="index name">
+</div>
+<div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name" style="width:65%;">
+</div>

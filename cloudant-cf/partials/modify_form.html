@@ -1,0 +1,72 @@
+<div class="form-row">
+    <label for="node-input-service">
+        <i class="fa fa-folder-close"></i>
+        Service
+    </label>
+    <select id="node-input-service" style="width:68%;">
+        <!-- <option value="" disabled></option> -->
+        <option value="_ext_">External cloudant or couchdb service</option>
+    </select>
+</div>
+
+<div class="form-row hide" id="node-input-external-details">
+    <label for="node-input-cloudant">
+        <i class="fa fa-bookmark"></i>
+        Server
+    </label>
+    <input type="text" id="node-input-cloudant">
+</div>
+
+<div class="form-row">
+    <label for="node-input-database">
+        <i class="fa fa-briefcase"></i>
+        Database
+    </label>
+    <input type="text" id="node-input-database" placeholder="database" style="width:65%;">
+</div>
+
+<div class="form-row">
+    <label for="node-input-operation">
+        <i class="fa fa-wrench"></i>
+        Operation
+    </label>
+    <select type="text" id="node-input-operation" style="width:68%;">
+        <option value="insert">insert</option>
+        <option value="delete">remove</option>
+    </select>
+</div>
+
+<div id="node-input-insert-options">
+    <div class="form-row node-input-payonly">
+        <label></label>
+        <input type="checkbox" id="node-input-payonly"
+               style="display: inline-block; width: auto; vertical-align: top;">
+        <label for="node-input-payonly" style="width:65%;">Only store msg.payload object?</label>
+    </div>
+
+    <div class="form-row">
+        <label></label>
+        <input type="checkbox" id="node-input-sendresult"
+               style="display: inline-block; width: auto; vertical-align: top;">
+        <label for="node-input-sendresult" style="width:65%;">Send result message forward?</label>
+    </div>
+</div>
+
+<div class="form-row">
+    <label for="node-input-name">
+        <i class="fa fa-tag"></i>
+        Name
+    </label>
+    <input type="text" id="node-input-name" placeholder="Name" style="width:65%;">
+</div>
+
+<script>
+    $("#node-input-operation").change(function() {
+        var id = $("#node-input-operation option:selected").val();
+        if (id == "delete") {
+            $("#node-input-insert-options").hide();
+        } else {
+            $("#node-input-insert-options").show();
+        }
+    });
+</script>

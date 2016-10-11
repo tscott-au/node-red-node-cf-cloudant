@@ -1,0 +1,37 @@
+<p>
+    A simple Cloudant output node. Stores <b>msg</b> in a chosen database.
+ </p>
+<p>
+    Cloudant generates a random id for the <code>_id</code> property if one
+    is not specified and a new document will be <b>inserted</b> each time.
+    You can <b>insert</b> only the <code>msg.payload</code> by checking the
+    checkbox in the configuration window.
+</p>
+<p>
+    If you want to <b>update</b> an existing document you must specify the
+    latest values for <code>_id</code> and <code>_rev</code> in your object.
+    If they don't match the current values stored in the database you will
+    receive a <b>conflict error</b> message, so make sure you are using the
+    most updated information for the document.
+ </p>
+ <p>
+     It is also possible to <b>delete</b> documents from the database by
+     providing values for <code>_id</code> and <code>_rev</code> and selecting
+     the <b>remove</b> option for the node. You can pass these values in the
+     <code>msg</code> object itself or as an object in the
+     <code>msg.payload</code>.
+ </p>
+ <p>
+     The <b>database name</b> must follow these rules:
+     <ul>
+         <li>No spaces</li>
+         <li>All letters in small caps</li>
+         <li>The first character can't be <code>_</code></li>
+     </ul>
+ </p>
+ <p>
+     Your document should avoid having top-level fields that start with
+     <code>_</code>, with exceptions for <code>_id</code>, <code>_rev</code>
+     and other <a href="https://wiki.apache.org/couchdb/HTTP_Document_API#Special_Fields">
+     CouchDB reserved words</a>.
+ </p>
