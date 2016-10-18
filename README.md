@@ -33,5 +33,5 @@ For `search indexes`, the query should follow the format `indexName:value`.
 
 Authors
 -------
-* Luiz Gustavo Ferraz Aoqui - [laoqui@br.ibm.com](mailto:laoqui@br.ibm.com)
+* Luiz Gustavo Ferraz Aoqui - [laoqui@ca.ibm.com](mailto:laoqui@ca.ibm.com)
 * Túlio Pascoal
