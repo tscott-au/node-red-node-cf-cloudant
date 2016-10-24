@@ -96,12 +96,16 @@ module.exports = function(RED) {
             else {
                 // check if the database exists and create it if it doesn't
                 createDatabase(cloudant, node);
-
-                node.on("input", function(msg) {
-                    delete msg._msgid;
-                    handleMessage(cloudant, node, msg);
-                });
             }
+
+            node.on("input", function(msg) {
+                if (err) { 
+                    return node.error(err.description, err); 
+                }
+
+                delete msg._msgid;
+                handleMessage(cloudant, node, msg);
+            });
         });
 
         function createDatabase(cloudant, node) {
@@ -241,37 +245,40 @@ module.exports = function(RED) {
 
         Cloudant(credentials, function(err, cloudant) {
             if (err) { node.error(err.description, err); }
-            else {
-                node.on("input", function(msg) {
-                    var db = cloudant.use(node.database);
-                    var options = (typeof msg.payload === "object") ? msg.payload : {};
 
-                    if (node.search === "_id_") {
-                        var id = getDocumentId(msg.payload);
-                        node.inputId = id;
+            node.on("input", function(msg) {
+                if (err) {
+                    return node.error(err.description, err);
+                }
 
-                        db.get(id, function(err, body) {
-                            sendDocumentOnPayload(err, body, msg);
-                        });
-                    }
-                    else if (node.search === "_idx_") {
-                        options.query = options.query || options.q || formatSearchQuery(msg.payload);
-                        options.include_docs = options.include_docs || true;
-                        options.limit = options.limit || 200;
+                var db = cloudant.use(node.database);
+                var options = (typeof msg.payload === "object") ? msg.payload : {};
 
-                        db.search(node.design, node.index, options, function(err, body) {
-                            sendDocumentOnPayload(err, body, msg);
-                        });
-                    }
-                    else if (node.search === "_all_") {
-                        options.include_docs = options.include_docs || true;
+                if (node.search === "_id_") {
+                    var id = getDocumentId(msg.payload);
+                    node.inputId = id;
 
-                        db.list(options, function(err, body) {
-                            sendDocumentOnPayload(err, body, msg);
-                        });
-                    }
-                });
-            }
+                    db.get(id, function(err, body) {
+                        sendDocumentOnPayload(err, body, msg);
+                    });
+                }
+                else if (node.search === "_idx_") {
+                    options.query = options.query || options.q || formatSearchQuery(msg.payload);
+                    options.include_docs = options.include_docs || true;
+                    options.limit = options.limit || 200;
+
+                    db.search(node.design, node.index, options, function(err, body) {
+                        sendDocumentOnPayload(err, body, msg);
+                    });
+                }
+                else if (node.search === "_all_") {
+                    options.include_docs = options.include_docs || true;
+
+                    db.list(options, function(err, body) {
+                        sendDocumentOnPayload(err, body, msg);
+                    });
+                }
+            });
         });
 
         function getDocumentId(payload) {
