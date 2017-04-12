@@ -13,404 +13,422 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  **/
-module.exports = function(RED) {
-    "use strict";
-    var url         = require('url');
-    var querystring = require('querystring');
-    var cfEnv       = require("cfenv");
-    var Cloudant    = require("cloudant");
+module.exports = function (RED) {
+	"use strict";
+	var url = require('url');
+	var querystring = require('querystring');
+	var cfEnv = require("cfenv");
+	var Cloudant = require("cloudant");
 
-    var MAX_ATTEMPTS = 3;
+	var MAX_ATTEMPTS = 3;
 
-    var appEnv   = cfEnv.getAppEnv();
-    var services = [];
+	var appEnv = cfEnv.getAppEnv();
+	var services = [];
 
-    // load the services bound to this application
-    for (var i in appEnv.services) {
-        if (appEnv.services.hasOwnProperty(i)) {
-            // filter the services to include only the Cloudant ones
-            if (i.match(/^(cloudant)/i)) {
-                services = services.concat(appEnv.services[i].map(function(v) {
-                    return { name: v.name, label: v.label };
-                }));
-            }
-        }
-    }
+	// load the services bound to this application
+	for (var i in appEnv.services) {
+		if (appEnv.services.hasOwnProperty(i)) {
+			// filter the services to include only the Cloudant ones
+			if (i.match(/^(cloudant)/i)) {
+				services = services.concat(appEnv.services[i].map(function (v) {
+							return {
+								name: v.name,
+								label: v.label
+							};
+						}));
+			}
+		}
+	}
 
-    //
-    // HTTP endpoints that will be accessed from the HTML file
-    //
-    RED.httpAdmin.get('/cloudant/vcap', function(req,res) {
-        res.send(JSON.stringify(services));
-    });
+	//
+	// HTTP endpoints that will be accessed from the HTML file
+	//
+	RED.httpAdmin.get('/cloudant/vcap', function (req, res) {
+		res.send(JSON.stringify(services));
+	});
 
-    //
-    // Create and register nodes
-    //
-    function CloudantNode(n) {
-        RED.nodes.createNode(this, n);
-        this.name = n.name;
-        this.host = n.host;
-        this.url = n.host;
+	//
+	// Create and register nodes
+	//
+	function CloudantNode(n) {
+		RED.nodes.createNode(this, n);
+		this.name = n.name;
+		this.host = n.host;
+		this.url = n.host;
 
-        // remove unnecessary parts from host value
-        var parsedUrl = url.parse(this.host);
-        if (parsedUrl.host) {
-            this.host = parsedUrl.host;
-        }
-        if (this.host.indexOf("cloudant.com")!==-1) {
-            // extract only the account name
-            this.account = this.host.substring(0, this.host.indexOf('.'));
-            delete this.url;
-        }
-        var credentials = this.credentials;
-        if ((credentials) && (credentials.hasOwnProperty("username"))) { this.username = credentials.username; }
-        if ((credentials) && (credentials.hasOwnProperty("pass"))) { this.password = credentials.pass; }
-    }
-    RED.nodes.registerType("cloudant", CloudantNode, {
-        credentials: {
-            pass: {type:"password"},
-            username: {type:"text"}
-        }
-    });
+		// remove unnecessary parts from host value
+		var parsedUrl = url.parse(this.host);
+		if (parsedUrl.host) {
+			this.host = parsedUrl.host;
+		}
+		if (this.host.indexOf("cloudant.com") !== -1) {
+			// extract only the account name
+			this.account = this.host.substring(0, this.host.indexOf('.'));
+			delete this.url;
+		}
+		var credentials = this.credentials;
+		if ((credentials) && (credentials.hasOwnProperty("username"))) {
+			this.username = credentials.username;
+		}
+		if ((credentials) && (credentials.hasOwnProperty("pass"))) {
+			this.password = credentials.pass;
+		}
+	}
+	RED.nodes.registerType("cloudant", CloudantNode, {
+		credentials: {
+			pass: {
+				type: "password"
+			},
+			username: {
+				type: "text"
+			}
+		}
+	});
 
+	function CloudantOutNode(n) {
+		RED.nodes.createNode(this, n);
 
-    function CloudantOutNode(n) {
-        RED.nodes.createNode(this,n);
+		this.operation = n.operation;
+		this.payonly = n.payonly || false;
+		this.outputMsg = n.outputmsg || "none";
+		this.database = _cleanDatabaseName(n.database, this);
+		this.cloudantConfig = _getCloudantConfig(n);
 
-        this.operation      = n.operation;
-        this.payonly        = n.payonly || false;
-        this.outputMsg      = n.outputmsg || "none";
-        this.database       = _cleanDatabaseName(n.database, this);
-        this.cloudantConfig = _getCloudantConfig(n);
+		var node = this;
+		var credentials = {
+			account: node.cloudantConfig.account,
+			key: node.cloudantConfig.username,
+			password: node.cloudantConfig.password,
+			url: node.cloudantConfig.url
+		};
 
-        var node = this;
-        var credentials = {
-            account:  node.cloudantConfig.account,
-            key:      node.cloudantConfig.username,
-            password: node.cloudantConfig.password,
-            url: node.cloudantConfig.url
-        };
+		Cloudant(credentials, function (err, cloudant) {
+			if (err) {
+				node.error(err.description, err);
+			} else {
+				// check if the database exists and create it if it doesn't
+				createDatabase(cloudant, node);
+			}
 
-        Cloudant(credentials, function(err, cloudant) {
-            if (err) { node.error(err.description, err); }
-            else {
-                // check if the database exists and create it if it doesn't
-                createDatabase(cloudant, node);
-            }
+			node.on("input", function (msg) {
+				if (err) {
+					_attachDbError(err, msg);
+					return node.error(err, msg);
+				}
 
-            node.on("input", function(msg) {
-                if (err) { 
-                    return node.error(err.description, err); 
-                }
+				handleMessage(cloudant, node, msg);
+			});
+		});
 
-                handleMessage(cloudant, node, msg);
-            });
-        });
+		function createDatabase(cloudant, node) {
+			cloudant.db.list(function (err, all_dbs) {
+				if (err) {
+					if (err.status_code === 403) {
+						// if err.status_code is 403 then we are probably using
+						// an api key, so we can assume the database already exists
+						return;
+					}
+					node.error("Failed to list databases: " + err.description, err);
+				} else {
+					if (all_dbs && all_dbs.indexOf(node.database) < 0) {
+						cloudant.db.create(node.database, function (err, body) {
+							if (err) {
+								node.error(
+									"Failed to create database: " + err.description,
+									err);
+							}
+						});
+					}
+				}
+			});
+		}
 
-        function createDatabase(cloudant, node) {
-            cloudant.db.list(function(err, all_dbs) {
-                if (err) {
-                    if (err.status_code === 403) {
-                        // if err.status_code is 403 then we are probably using
-                        // an api key, so we can assume the database already exists
-                        return;
-                    }
-                    node.error("Failed to list databases: " + err.description, err);
-                }
-                else {
-                    if (all_dbs && all_dbs.indexOf(node.database) < 0) {
-                        cloudant.db.create(node.database, function(err, body) {
-                            if (err) {
-                                node.error(
-                                    "Failed to create database: " + err.description,
-                                    err
-                                );
-                            }
-                        });
-                    }
-                }
-            });
-        }
+		
+		
+		function handleMessage(cloudant, node, msg) {
+			
+			if (node.operation === "insert") {
+				
+				var doc = node.payonly ? msg.payload : msg;
+				var root = node.payonly ? "payload" : "msg";
 
-        function handleMessage(cloudant, node, msg) {
-            var origMsgId = msg._msgid ;
-            delete msg._msgid;
-            if (node.operation === "insert") {
-                var origMsg = msg ;
-                var msg  = node.payonly ? msg.payload : msg;
-                var root = node.payonly ? "payload" : "msg";
-                var doc  = parseMessage(msg, root);
+				doc = cleanMessage(
+						parseMessage(doc, root)
+					);
+				
 
-                insertDocument(cloudant, node, doc, MAX_ATTEMPTS, function(err, body) {
-                    if (err) {
-                        console.trace();
-                        console.log(node.error.toString());
-                        node.error("Failed to insert document: " + err.description, msg);
-                        if (node.outputMsg && (node.outputMsg == "error" 
-                        || node.outputMsg == "all")) {
-                            //send original message on error 
-                            origMsg._msgid = origMsgId ;
-                            origMsg.dbError = {} ;
+				insertDocument(cloudant, node, doc, MAX_ATTEMPTS, function (err, body) {
+					if (err) {
 
-                            origMsg.dbError.statusCode = err.statusCode;
-                            origMsg.dbError.description = err.description;
-                            origMsg.dbError.message = err.message;
-                            origMsg.dbError.reason = err.reason;
-                            origMsg.dbError.scope = err.scope;
-                            node.send([origMsg]);
-                        }
-                    }
-                    else if (node.outputMsg && (node.outputMsg == "success"
-                    || node.outputMsg == "all")) {
-                        // send message with updated id and rev on success
-                        origMsg._msgid = origMsgId ;
-                        delete origMsg.dbError;  // just in case original message came from error path                      
-                        if (node.payonly) {
-                            origMsg.payload._id = body.id;
-                            origMsg.payload._rev = body.rev;
-                        }
-                        else {
-                            origMsg._id = body.id;
-                            origMsg._rev = body.rev;
-                        }
+						console.trace();
+						console.log(node.error.toString());
+						
+						_attachDbError(err, msg);
+						node.error(err, msg);
+						
+					} else if (node.outputMsg && (node.outputMsg == "yes")) {
+						// send message with updated id and rev on success
+						
+						if (node.payonly 
+							&& msg.payload !== undefined 
+							&& (typeof msg.payload === "object")) {
+							msg.payload._id = body.id;
+							msg.payload._rev = body.rev;
+						} else {
+							msg._id = body.id;
+							msg._rev = body.rev;
+						}
 
-                        node.send([origMsg]);
-                    }
-                });
-            }
-            else if (node.operation === "delete") {
-                var doc = parseMessage(msg.payload || msg, "");
+						node.send(msg);
+					}
+				});
 
-                if ("_rev" in doc && "_id" in doc) {
-                    var db = cloudant.use(node.database);
-                    db.destroy(doc._id, doc._rev, function(err, body) {
-                        if (err) {
-                            node.error("Failed to delete document: " + err.description, msg);
-                        }
-                    });
-                } else {
-                    var err = new Error("_id and _rev are required to delete a document");
-                    node.error(err.message, msg);
-                }
-            }
-        }
+			} else if (node.operation === "delete") {
+				var doc = cleanMessage(
+						parseMessage(msg.payload || msg, "")
+						);
 
-        function parseMessage(msg, root) {
-            if (typeof msg !== "object") {
-                try {
-                    msg = JSON.parse(msg);
-                    // JSON.parse accepts numbers, so make sure that an
-                    // object is return, otherwise create a new one
-                    if (typeof msg !== "object") {
-                        msg = JSON.parse('{"' + root + '":"' + msg + '"}');
-                    }
-                } catch (e) {
-                    // payload is not in JSON format
-                    msg = JSON.parse('{"' + root + '":"' + msg + '"}');
-                }
-            }
-            return cleanMessage(msg);
-        }
+				if ("_rev" in doc && "_id" in doc) {
+					var db = cloudant.use(node.database);
+					db.destroy(doc._id, doc._rev, function (err, body) {
+						if (err) {
+							_attachDbError(err, msg);
+							node.error(err, msg);
+						}
+					});
+				} else {
+					var err = new Error("_id and _rev are required to delete a document");
+					_attachDbError(err, msg);
+					node.error(err, msg);
+				}
+			}
+		}
 
-        // fix field values that start with _
-        // https://wiki.apache.org/couchdb/HTTP_Document_API#Special_Fields
-        function cleanMessage(msg) {
-            for (var key in msg) {
-                if (msg.hasOwnProperty(key) && !isFieldNameValid(key)) {
-                    // remove _ from the start of the field name
-                    var newKey = key.substring(1, msg.length);
-                    msg[newKey] = msg[key];
-                    delete msg[key];
-                    node.warn("Property '" + key + "' renamed to '" + newKey + "'.");
-                }
-            }
-            return msg;
-        }
+		function parseMessage(msg, root) {
+			var doc;
+			if (typeof msg !== "object") {
+				try {
+					doc = JSON.parse(msg);
+					// JSON.parse accepts numbers, so make sure that an
+					// object is return, otherwise create a new one
+					if (typeof doc !== "object") {
+						doc = JSON.parse('{"' + root + '":"' + msg + '"}');
+					}
+				} catch (e) {
+					// payload is not in JSON format
+					doc = JSON.parse('{"' + root + '":"' + msg + '"}');
+				}
+			} else { 
+				// clone so we don't change the original message
+				doc = JSON.parse(JSON.stringify(msg)); 
+			}
+			return doc;
+		}
 
-        function isFieldNameValid(key) {
-            var allowedWords = [
-                '_id', '_rev', '_attachments', '_deleted', '_revisions',
-                '_revs_info', '_conflicts', '_deleted_conflicts', '_local_seq'
-            ];
-            return key[0] !== '_' || allowedWords.indexOf(key) >= 0;
-        }
+		// fix field values that start with _
+		// https://wiki.apache.org/couchdb/HTTP_Document_API#Special_Fields
+		function cleanMessage(msg) {
+			delete msg._msgid;
 
-        // Inserts a document +doc+ in a database +db+ that migh not exist
-        // beforehand. If the database doesn't exist, it will create one
-        // with the name specified in +db+. To prevent loops, it only tries
-        // +attempts+ number of times.
-        function insertDocument(cloudant, node, doc, attempts, callback) {
-            var db = cloudant.use(node.database);
-            db.insert(doc, function(err, body) {
-                if (err && err.status_code === 404 && attempts > 0) {
-                    // status_code 404 means the database was not found
-                    return cloudant.db.create(db.config.db, function() {
-                        insertDocument(cloudant, node, doc, attempts-1, callback);
-                    });
-                }
+			for (var key in msg) {
+				if (msg.hasOwnProperty(key) && !isFieldNameValid(key)) {
+					// remove _ from the start of the field name
+					var newKey = key.substring(1, msg.length);
+					msg[newKey] = msg[key];
+					delete msg[key];
+					node.warn("Property '" + key + "' renamed to '" + newKey + "'.");
+				}
+			}
+			return msg;
+		}
 
-                callback(err, body);
-            });
-        }
-    };
-    RED.nodes.registerType("cloudant out", CloudantOutNode);
+		function isFieldNameValid(key) {
+			var allowedWords = [
+				'_id', '_rev', '_attachments', '_deleted', '_revisions',
+				'_revs_info', '_conflicts', '_deleted_conflicts', '_local_seq'
+			];
+			return key[0] !== '_' || allowedWords.indexOf(key) >= 0;
+		}
 
+		// Inserts a document +doc+ in a database +db+ that migh not exist
+		// beforehand. If the database doesn't exist, it will create one
+		// with the name specified in +db+. To prevent loops, it only tries
+		// +attempts+ number of times.
+		function insertDocument(cloudant, node, doc, attempts, callback) {
+			var db = cloudant.use(node.database);
+			db.insert(doc, function (err, body) {
+				if (err && err.status_code === 404 && attempts > 0) {
+					// status_code 404 means the database was not found
+					return cloudant.db.create(db.config.db, function () {
+						insertDocument(cloudant, node, doc, attempts - 1, callback);
+					});
+				}
 
-    function CloudantInNode(n) {
-        RED.nodes.createNode(this,n);
+				callback(err, body);
+			});
+		}
+	};
+	RED.nodes.registerType("cloudant out", CloudantOutNode);
 
-        this.cloudantConfig = _getCloudantConfig(n);
-        this.database       = _cleanDatabaseName(n.database, this);
-        this.search         = n.search;
-        this.design         = n.design;
-        this.index          = n.index;
-        this.inputId        = "";
+	function CloudantInNode(n) {
+		RED.nodes.createNode(this, n);
 
-        var node = this;
-        var credentials = {
-            account:  node.cloudantConfig.account,
-            key:      node.cloudantConfig.username,
-            password: node.cloudantConfig.password,
-            url: node.cloudantConfig.url
-        };
+		this.cloudantConfig = _getCloudantConfig(n);
+		this.database = _cleanDatabaseName(n.database, this);
+		this.search = n.search;
+		this.design = n.design;
+		this.index = n.index;
+		this.inputId = "";
 
-        Cloudant(credentials, function(err, cloudant) {
-            if (err) { node.error(err.description, err); }
+		var node = this;
+		var credentials = {
+			account: node.cloudantConfig.account,
+			key: node.cloudantConfig.username,
+			password: node.cloudantConfig.password,
+			url: node.cloudantConfig.url
+		};
 
-            node.on("input", function(msg) {
-                if (err) {
-                    return node.error(err.description, err);
-                }
+		Cloudant(credentials, function (err, cloudant) {
+			if (err) {
+				node.error(err.description, err);
+			}
 
-                var db = cloudant.use(node.database);
-                var options = (typeof msg.payload === "object") ? msg.payload : {};
+			node.on("input", function (msg) {
+				if (err) {
+					_attachDbError(err, msg);
+					return node.error(err.description, msg);
+				}
 
-                if (node.search === "_id_") {
-                    var id = getDocumentId(msg.payload);
-                    node.inputId = id;
+				var db = cloudant.use(node.database);
+				var options = (typeof msg.payload === "object") ? msg.payload : {};
 
-                    db.get(id, function(err, body) {
-                        sendDocumentOnPayload(err, body, msg);
-                    });
-                }
-                else if (node.search === "_idx_") {
-                    options.query = options.query || options.q || formatSearchQuery(msg.payload);
-                    options.include_docs = options.include_docs || true;
-                    options.limit = options.limit || 200;
+				if (node.search === "_id_") {
+					var id = getDocumentId(msg.payload);
+					node.inputId = id;
 
-                    db.search(node.design, node.index, options, function(err, body) {
-                        sendDocumentOnPayload(err, body, msg);
-                    });
-                }
-                else if (node.search === "_all_") {
-                    options.include_docs = options.include_docs || true;
+					db.get(id, function (err, body) {
+						sendDocumentOnPayload(err, body, msg);
+					});
+				} else if (node.search === "_idx_") {
+					options.query = options.query || options.q || formatSearchQuery(msg.payload);
+					options.include_docs = options.include_docs || true;
+					options.limit = options.limit || 200;
 
-                    db.list(options, function(err, body) {
-                        sendDocumentOnPayload(err, body, msg);
-                    });
-                }
-            });
-        });
+					db.search(node.design, node.index, options, function (err, body) {
+						sendDocumentOnPayload(err, body, msg);
+					});
+				} else if (node.search === "_all_") {
+					options.include_docs = options.include_docs || true;
 
-        function getDocumentId(payload) {
-            if (typeof payload === "object") {
-                if ("_id" in payload || "id" in payload) {
-                    return payload.id || payload._id;
-                }
-            }
+					db.list(options, function (err, body) {
+						sendDocumentOnPayload(err, body, msg);
+					});
+				}
+			});
+		});
 
-            return payload;
-        }
+				
+		function getDocumentId(payload) {
+			if (typeof payload === "object") {
+				if ("_id" in payload || "id" in payload) {
+					return payload.id || payload._id;
+				}
+			}
 
-        function formatSearchQuery(query) {
-            if (typeof query === "object") {
-                // useful when passing the query on HTTP params
-                if ("q" in query) { return query.q; }
+			return payload;
+		}
 
-                var queryString = "";
-                for (var key in query) {
-                    queryString += key + ":" + query[key] + " ";
-                }
+		function formatSearchQuery(query) {
+			if (typeof query === "object") {
+				// useful when passing the query on HTTP params
+				if ("q" in query) {
+					return query.q;
+				}
 
-                return queryString.trim();
-            }
-            return query;
-        }
+				var queryString = "";
+				for (var key in query) {
+					queryString += key + ":" + query[key] + " ";
+				}
 
-        function sendDocumentOnPayload(err, body, msg) {
-            if (!err) {
-                msg.cloudant = body;
+				return queryString.trim();
+			}
+			return query;
+		}
 
-                if ("rows" in body) {
-                    msg.payload = body.rows.
-                        map(function(el) {
-                            if (el.doc._id.indexOf("_design/") < 0) {
-                                return el.doc;
-                            }
-                        }).
-                        filter(function(el) {
-                            return el !== null && el !== undefined;
-                        });
-                } else {
-                    msg.payload = body;
-                }
-            }
-            else {
-                msg.payload = null;
+		function sendDocumentOnPayload(err, body, msg) {
+			if (!err) {
+				//msg.cloudant = body;
 
-                if (err.description === "missing") {
-                    node.warn(
-                        "Document '" + node.inputId +
-                        "' not found in database '" + node.database + "'.",
-                        err
-                    );
-                } else {
-                    node.error(err.description, err);
-                }
-            }
+				if ("rows" in body) {
+					msg.payload = body.rows.
+						map(function (el) {
+							if (el.doc._id.indexOf("_design/") < 0) {
+								return el.doc;
+							}
+						}).
+						filter(function (el) {
+							return el !== null && el !== undefined;
+						});
+				} else {
+					msg.payload = body;
+				}
+				node.send(msg);
+			} else {
+					_attachDbError(err, msg);
+					node.error(err, msg);
+			}
+			
+		}
+	}
+	RED.nodes.registerType("cloudant in", CloudantInNode);
 
-            node.send(msg);
-        }
-    }
-    RED.nodes.registerType("cloudant in", CloudantInNode);
+	// must return an object with, at least, values for account, username and
+	// password for the Cloudant service at the top-level of the object
+	function _getCloudantConfig(n) {
+		if (n.service === "_ext_") {
+			return RED.nodes.getNode(n.cloudant);
 
-    // must return an object with, at least, values for account, username and
-    // password for the Cloudant service at the top-level of the object
-    function _getCloudantConfig(n) {
-        if (n.service === "_ext_") {
-            return RED.nodes.getNode(n.cloudant);
+		} else if (n.service !== "") {
+			var service = appEnv.getService(n.service);
+			var cloudantConfig = {};
 
-        } else if (n.service !== "") {
-            var service        = appEnv.getService(n.service);
-            var cloudantConfig = { };
+			var host = service.credentials.host;
 
-            var host = service.credentials.host;
+			cloudantConfig.username = service.credentials.username;
+			cloudantConfig.password = service.credentials.password;
+			cloudantConfig.account = host.substring(0, host.indexOf('.'));
 
-            cloudantConfig.username = service.credentials.username;
-            cloudantConfig.password = service.credentials.password;
-            cloudantConfig.account  = host.substring(0, host.indexOf('.'));
+			return cloudantConfig;
+		}
+	}
 
-            return cloudantConfig;
-        }
-    }
+	// remove invalid characters from the database name
+	// https://wiki.apache.org/couchdb/HTTP_database_API#Naming_and_Addressing
+	function _cleanDatabaseName(database, node) {
+		var newDatabase = database;
 
-    // remove invalid characters from the database name
-    // https://wiki.apache.org/couchdb/HTTP_database_API#Naming_and_Addressing
-    function _cleanDatabaseName(database, node) {
-        var newDatabase = database;
+		// caps are not allowed
+		newDatabase = newDatabase.toLowerCase();
+		// remove trailing underscore
+		newDatabase = newDatabase.replace(/^_/, '');
+		// remove spaces and slashed
+		newDatabase = newDatabase.replace(/[\s\\/]+/g, '-');
 
-        // caps are not allowed
-        newDatabase = newDatabase.toLowerCase();
-        // remove trailing underscore
-        newDatabase = newDatabase.replace(/^_/, '');
-        // remove spaces and slashed
-        newDatabase = newDatabase.replace(/[\s\\/]+/g, '-');
+		if (newDatabase !== database) {
+			node.warn("Database renamed  as '" + newDatabase + "'.");
+		}
 
-        if (newDatabase !== database) {
-            node.warn("Database renamed  as '" + newDatabase + "'.");
-        }
+		return newDatabase;
+	}
 
-        return newDatabase;
-    }
+	function _attachDbError(err, msg){
+				delete msg.dbError;
+				msg.dbError = {};
+
+				msg.dbError.statusCode = err.statusCode !== undefined ? err.statusCode : null;
+				msg.dbError.description = err.description !== undefined ? err.description : null;
+				msg.dbError.message = err.message !== undefined ? err.message : null;
+				msg.dbError.reason = err.reason !== undefined ? err.reason : null;
+				msg.dbError.scope = err.scope !== undefined ? err.scope : null;
+	}
 };

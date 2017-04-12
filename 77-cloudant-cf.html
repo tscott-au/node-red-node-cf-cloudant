@@ -88,10 +88,8 @@
     <div class="form-row">
         <label for="node-input-outputmsg"><i class="fa fa-wrench"></i>output msg</label>
         <select type="text" id="node-input-outputmsg" style="width:68%;">
-            <option value="none">none</option>
-            <option value="error">error</option>
-            <option value="success">success</option>
-            <option value="all">all</option>
+            <option value="no">no</option>
+            <option value="yes">yes</option>
         </select>
     <script>
         $("#node-input-operation").change(function() {
@@ -149,7 +147,7 @@
             service: { value:"", required:true },
             payonly: { value:false },
             operation: { value:"insert" },
-            outputmsg: { value:"none" }
+            outputmsg: { value:"no" }
         },
         inputs: 1,
         outputs: 0,
@@ -162,7 +160,7 @@
         oneditprepare: oneditprepare,
         oneditsave: function() {
             var oval = $("#node-input-outputmsg").val();
-            if (oval == "none") this.outputs = 0;
+            if (oval == "no") this.outputs = 0;
             else this.outputs = 1;
         }
     });
@@ -287,12 +285,18 @@
         </ul>
     </p>
     <p>
-        You can specify that an output message is generated - either always (all) or for success or error. 
-        In the event of an error the message output will be the original 
-        message with a dbError field showing the error. For successful inserts or updates, 
-        the message output will be the original message with the _id and _rev fields 
+        You can specify that an output message is generated for
+        successful inserts or updates. When enabled, the message
+        output will be the original <code>msg</code> with the _id and _rev fields 
         updated in either the message body or in the payload.
         The default setting is that no output message is generated.
+
+    </p>
+    <p>
+        Errors are returned via <code>node.error(err)</code> calls and can be 
+        caught by Catch nodes present on the same tab.
+        When a <code>msg</code> object is in scope it is returned via <code>node.error(err, msg)</code>.
+        Additional database error details are added to <code>msg.dbError</code>.
     </p>
     <p>
         Your document should avoid having top-level fields that start with
@@ -350,5 +354,11 @@
             <li>All letters in small caps</li>
             <li>The first character can't be <code>_</code></li>
         </ul>
+    </p>
+    <p>
+        Errors are returned via <code>node.error(err)</code> calls and can be 
+        caught by Catch nodes present on the same tab.
+        When a <code>msg</code> object is in scope it is returned via <code>node.error(err, msg)</code>.
+        Additional database error details are added to <code>msg.dbError</code>.
     </p>
 </script>
